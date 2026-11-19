@@ -292,7 +292,7 @@ with tab_mapa:
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Centrado exactamente en el punto medio de Calle Tizimín
-        mapa = folium.Map(location=[19.2976, -99.2162], zoom_start=16, tiles="CartoDB positron")
+        mapa = folium.Map(location=[19.2976, -99.2162], zoom_start=16, tiles="OpenStreetMap")
 
         # Dibujamos una línea sutil resaltando el corredor de Calle Tizimín
         folium.PolyLine(

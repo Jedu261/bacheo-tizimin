@@ -26,13 +26,10 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* Forzar fondo blanco limpio en toda la aplicación */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #FFFFFF !important;
         color: #0F172A !important;
     }
-    
-    /* Encabezado principal blanco con acento azul y sombra suave */
     .hero-banner {
         background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
         padding: 1.8rem 2rem;
@@ -55,8 +52,6 @@ st.markdown("""
         color: #475569;
         font-size: 1.05rem;
     }
-
-    /* Tarjetas de métricas en blanco puro */
     div[data-testid="metric-container"] {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
@@ -71,8 +66,6 @@ st.markdown("""
     div[data-testid="stMetricValue"] {
         color: #0F172A !important;
     }
-
-    /* Pestañas estilizadas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
         background-color: #F8FAFC;
@@ -92,8 +85,6 @@ st.markdown("""
         color: #2563EB !important;
         box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
-
-    /* Formularios y textos */
     [data-testid="stForm"] {
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
@@ -108,7 +99,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. CONEXIÓN A BASE DE DATOS Y COORDENADAS EXACTAS DE CALLE TIZIMÍN
+# 2. CONEXIÓN A BASE DE DATOS Y COORDENADAS CALIBRADAS DE CALLE TIZIMÍN
 # ==============================================================================
 RENDER_DB_URL = st.secrets.get(
     "RENDER_DB_URL",
@@ -117,30 +108,30 @@ RENDER_DB_URL = st.secrets.get(
 if RENDER_DB_URL.startswith("postgres://"):
     RENDER_DB_URL = RENDER_DB_URL.replace("postgres://", "postgresql://", 1)
 
-# Trazo exacto sobre Calle Tizimín desde Av. Chicoasén hasta Carretera Picacho-Ajusco
+# Trazo exacto sobre Calle Tizimín: desde Av. Chicoasén hasta Blvd. Picacho-Ajusco
 COORDENADAS_ESQUINAS = {
-    "Tizimín esq. Av. Chicoasén": (19.29010, -99.22295),
-    "Tizimín esq. Seyé": (19.29022, -99.22228),
-    "Tizimín esq. Pomuch": (19.29034, -99.22160),
-    "Tizimín esq. Sacalum": (19.29046, -99.22092),
-    "Tizimín esq. Tulum": (19.29058, -99.22025),
-    "Tizimín esq. Tekax": (19.29070, -99.21958),
-    "Tizimín esq. Tekit": (19.29082, -99.21890),
-    "Tizimín esq. Bécal": (19.29094, -99.21822),
-    "Tizimín esq. Bochil": (19.29106, -99.21755),
-    "Tizimín esq. Yobaín": (19.29118, -99.21688),
-    "Tizimín esq. Hopelchén": (19.29130, -99.21620),
-    "Tizimín esq. Izamal": (19.29142, -99.21552),
-    "Tizimín esq. Akil": (19.29154, -99.21485),
-    "Tizimín esq. Yucalpetén": (19.29140, -99.21418),
-    "Tizimín esq. Contoy": (19.29125, -99.21350),
-    "Tizimín esq. Cancún": (19.29137, -99.21282),
-    "Tizimín esq. Kinchil": (19.29149, -99.21215),
-    "Tizimín esq. Huehuetán": (19.29161, -99.21148),
-    "Tizimín esq. Calkiní": (19.29173, -99.21080),
-    "Tizimín esq. Tzinal": (19.29185, -99.21012),
-    "Tizimín esq. Pichucalco": (19.29197, -99.20945),
-    "Tizimín esq. Carretera Picacho-Ajusco": (19.29210, -99.20875)
+    "Tizimín esq. Av. Chicoasén": (19.28807, -99.23107),
+    "Tizimín esq. Seyé": (19.28814, -99.23039),
+    "Tizimín esq. Pomuch": (19.28820, -99.22972),
+    "Tizimín esq. Sacalum": (19.28827, -99.22904),
+    "Tizimín esq. Tulum": (19.28834, -99.22836),
+    "Tizimín esq. Tekax": (19.28840, -99.22769),
+    "Tizimín esq. Tekit": (19.28847, -99.22701),
+    "Tizimín esq. Bécal": (19.28854, -99.22633),
+    "Tizimín esq. Bochil": (19.28860, -99.22566),
+    "Tizimín esq. Yobaín": (19.28867, -99.22498),
+    "Tizimín esq. Hopelchén": (19.28874, -99.22430),
+    "Tizimín esq. Izamal": (19.28880, -99.22363),
+    "Tizimín esq. Akil": (19.28887, -99.22295),
+    "Tizimín esq. Yucalpetén": (19.28868, -99.22182),
+    "Tizimín esq. Contoy": (19.28850, -99.22070),
+    "Tizimín esq. Cancún": (19.28856, -99.22015),
+    "Tizimín esq. Kinchil": (19.28861, -99.21960),
+    "Tizimín esq. Huehuetán": (19.28867, -99.21905),
+    "Tizimín esq. Calkiní": (19.28873, -99.21850),
+    "Tizimín esq. Tzinal": (19.28879, -99.21794),
+    "Tizimín esq. Pichucalco": (19.28884, -99.21739),
+    "Tizimín esq. Carretera Picacho-Ajusco": (19.28890, -99.21684)
 }
 
 ESQUINAS_ORDENADAS = list(COORDENADAS_ESQUINAS.keys())
@@ -306,8 +297,21 @@ with tab_mapa:
     baches_db = session.query(BacheDB).all()
     session.close()
 
+    # Centrado exactamente sobre Calle Tizimín (entre Av. Chicoasén y Picacho-Ajusco)
+    mapa = folium.Map(location=[19.2885, -99.2240], zoom_start=16, tiles="OpenStreetMap")
+
+    # Línea azul abarcando exclusivamente Calle Tizimín de punta a punta
+    folium.PolyLine(
+        locations=list(COORDENADAS_ESQUINAS.values()),
+        color="#2563EB",
+        weight=6,
+        opacity=0.80,
+        tooltip="Calle Tizimín (Av. Chicoasén — Blvd. Picacho-Ajusco)"
+    ).add_to(mapa)
+
     if not baches_db:
         st.info("👋 ¡Todo despejado por ahora! Aún no hay baches reportados en Calle Tizimín. Entra a la pestaña **Reportar un Bache** para registrar el primero.")
+        st_folium(mapa, width="100%", height=470)
     else:
         total_reparar = sum(b.costo_reparar_mxn for b in baches_db)
         total_no_reparar = sum(b.costo_no_reparar_mxn for b in baches_db)
@@ -320,18 +324,6 @@ with tab_mapa:
         col4.metric("💰 Ahorro por Actuar a Tiempo", f"${ahorro_preventivo:,.0f} MXN", delta="Beneficio vecinal")
 
         st.markdown("<br>", unsafe_allow_html=True)
-
-        # Centrado exactamente sobre Calle Tizimín
-        mapa = folium.Map(location=[19.2912, -99.2158], zoom_start=16, tiles="OpenStreetMap")
-
-        # Línea azul abarcando todo el corredor de Calle Tizimín (Chicoasén -> Picacho-Ajusco)
-        folium.PolyLine(
-            locations=list(COORDENADAS_ESQUINAS.values()),
-            color="#2563EB",
-            weight=6,
-            opacity=0.75,
-            tooltip="Corredor Completo Calle Tizimín (Av. Chicoasén - Picacho Ajusco)"
-        ).add_to(mapa)
 
         cola_heap = []
         for b in baches_db:

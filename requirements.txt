@@ -1,0 +1,10 @@
+streamlit
+folium
+streamlit-folium
+streamlit-js-eval
+Pillow
+numpy
+pandas
+scipy
+sqlalchemy
+psycopg2-binary

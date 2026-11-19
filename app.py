@@ -117,29 +117,30 @@ RENDER_DB_URL = st.secrets.get(
 if RENDER_DB_URL.startswith("postgres://"):
     RENDER_DB_URL = RENDER_DB_URL.replace("postgres://", "postgresql://", 1)
 
+# Trazo exacto sobre Calle Tizimín desde Av. Chicoasén hasta Carretera Picacho-Ajusco
 COORDENADAS_ESQUINAS = {
-    "Tizimín esq. Av. Chicoasén": (19.29095, -99.22295),
-    "Tizimín esq. Seyé": (19.29108, -99.22215),
-    "Tizimín esq. Pomuch": (19.29122, -99.22130),
-    "Tizimín esq. Sacalum": (19.29136, -99.22048),
-    "Tizimín esq. Tulum": (19.29150, -99.21965),
-    "Tizimín esq. Tekax": (19.29164, -99.21882),
-    "Tizimín esq. Tekit": (19.29178, -99.21800),
-    "Tizimín esq. Bécal": (19.29192, -99.21718),
-    "Tizimín esq. Bochil": (19.29206, -99.21635),
-    "Tizimín esq. Yobaín": (19.29220, -99.21552),
-    "Tizimín esq. Hopelchén": (19.29234, -99.21470),
-    "Tizimín esq. Izamal": (19.29248, -99.21388),
-    "Tizimín esq. Akil": (19.29262, -99.21305),
-    "Tizimín esq. Yucalpetén": (19.29245, -99.21222),
-    "Tizimín esq. Contoy": (19.29222, -99.21140),
-    "Tizimín esq. Cancún": (19.29236, -99.21058),
-    "Tizimín esq. Kinchil": (19.29250, -99.20975),
-    "Tizimín esq. Huehuetán": (19.29264, -99.20892),
-    "Tizimín esq. Calkiní": (19.29278, -99.20810),
-    "Tizimín esq. Tzinal": (19.29292, -99.20728),
-    "Tizimín esq. Pichucalco": (19.29306, -99.20645),
-    "Tizimín esq. Carretera Picacho-Ajusco": (19.29320, -99.20560)
+    "Tizimín esq. Av. Chicoasén": (19.29010, -99.22295),
+    "Tizimín esq. Seyé": (19.29022, -99.22228),
+    "Tizimín esq. Pomuch": (19.29034, -99.22160),
+    "Tizimín esq. Sacalum": (19.29046, -99.22092),
+    "Tizimín esq. Tulum": (19.29058, -99.22025),
+    "Tizimín esq. Tekax": (19.29070, -99.21958),
+    "Tizimín esq. Tekit": (19.29082, -99.21890),
+    "Tizimín esq. Bécal": (19.29094, -99.21822),
+    "Tizimín esq. Bochil": (19.29106, -99.21755),
+    "Tizimín esq. Yobaín": (19.29118, -99.21688),
+    "Tizimín esq. Hopelchén": (19.29130, -99.21620),
+    "Tizimín esq. Izamal": (19.29142, -99.21552),
+    "Tizimín esq. Akil": (19.29154, -99.21485),
+    "Tizimín esq. Yucalpetén": (19.29140, -99.21418),
+    "Tizimín esq. Contoy": (19.29125, -99.21350),
+    "Tizimín esq. Cancún": (19.29137, -99.21282),
+    "Tizimín esq. Kinchil": (19.29149, -99.21215),
+    "Tizimín esq. Huehuetán": (19.29161, -99.21148),
+    "Tizimín esq. Calkiní": (19.29173, -99.21080),
+    "Tizimín esq. Tzinal": (19.29185, -99.21012),
+    "Tizimín esq. Pichucalco": (19.29197, -99.20945),
+    "Tizimín esq. Carretera Picacho-Ajusco": (19.29210, -99.20875)
 }
 
 ESQUINAS_ORDENADAS = list(COORDENADAS_ESQUINAS.keys())
@@ -321,15 +322,15 @@ with tab_mapa:
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Centrado exactamente sobre Calle Tizimín
-        mapa = folium.Map(location=[19.2922, -99.2145], zoom_start=16, tiles="OpenStreetMap")
+        mapa = folium.Map(location=[19.2912, -99.2158], zoom_start=16, tiles="OpenStreetMap")
 
-        # Dibujamos la línea azul siguiendo el trazo real de todas las esquinas
+        # Línea azul abarcando todo el corredor de Calle Tizimín (Chicoasén -> Picacho-Ajusco)
         folium.PolyLine(
             locations=list(COORDENADAS_ESQUINAS.values()),
             color="#2563EB",
-            weight=5,
-            opacity=0.65,
-            tooltip="Corredor Calle Tizimín"
+            weight=6,
+            opacity=0.75,
+            tooltip="Corredor Completo Calle Tizimín (Av. Chicoasén - Picacho Ajusco)"
         ).add_to(mapa)
 
         cola_heap = []

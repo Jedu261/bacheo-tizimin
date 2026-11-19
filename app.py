@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, Column, Integer, Float, String, Boolean, T
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # ==============================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS VISUALES
+# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS VISUALES (TEMA BLANCO LUMINOSO)
 # ==============================================================================
 st.set_page_config(
     page_title="Alerta Vial Tizimín | Reporte Ciudadano",
@@ -24,50 +24,91 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilos CSS personalizados para una apariencia moderna y cívica
 st.markdown("""
 <style>
+    /* Forzar fondo blanco limpio en toda la aplicación */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+        background-color: #FFFFFF !important;
+        color: #0F172A !important;
+    }
+    
+    /* Encabezado principal blanco con acento azul y sombra suave */
     .hero-banner {
-        background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+        background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
         padding: 1.8rem 2rem;
-        border-radius: 14px;
-        color: white;
+        border-radius: 16px;
+        color: #0F172A;
         margin-bottom: 1.5rem;
-        border-left: 6px solid #F59E0B;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+        border: 1px solid #E2E8F0;
+        border-left: 6px solid #2563EB;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
     }
     .hero-banner h1 {
         margin: 0;
         font-size: 2rem;
         font-weight: 800;
+        color: #0F172A;
         letter-spacing: -0.5px;
     }
     .hero-banner p {
         margin: 0.4rem 0 0 0;
-        color: #CBD5E1;
+        color: #475569;
         font-size: 1.05rem;
     }
+
+    /* Tarjetas de métricas en blanco puro */
     div[data-testid="metric-container"] {
-        background-color: #F8FAFC;
+        background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
-        padding: 15px 18px;
-        border-radius: 12px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+        padding: 16px 20px;
+        border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
     }
+    div[data-testid="stMetricLabel"] {
+        color: #475569 !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stMetricValue"] {
+        color: #0F172A !important;
+    }
+
+    /* Pestañas estilizadas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
+        background-color: #F8FAFC;
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid #E2E8F0;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        border-radius: 8px 8px 0px 0px;
-        padding: 10px 20px;
+        height: 44px;
+        border-radius: 8px;
+        padding: 8px 20px;
         font-weight: 600;
+        color: #334155;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #FFFFFF !important;
+        color: #2563EB !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    /* Formularios y textos */
+    [data-testid="stForm"] {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+    }
+    p, label, span, h1, h2, h3, h4 {
+        color: #0F172A;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. CONEXIÓN A BASE DE DATOS Y COORDENADAS REALES DE CALLE TIZIMÍN
+# 2. CONEXIÓN A BASE DE DATOS Y COORDENADAS EXACTAS DE CALLE TIZIMÍN
 # ==============================================================================
 RENDER_DB_URL = st.secrets.get(
     "RENDER_DB_URL",
@@ -76,44 +117,32 @@ RENDER_DB_URL = st.secrets.get(
 if RENDER_DB_URL.startswith("postgres://"):
     RENDER_DB_URL = RENDER_DB_URL.replace("postgres://", "postgresql://", 1)
 
-# Trazo exacto sobre Calle Tizimín (Pedregal de San Nicolás, Tlalpan)
-# Desde Av. Chicoasén (19.2955, -99.2223) hasta Carretera Picacho-Ajusco (19.2997, -99.2102)
-ESQUINAS_ORDENADAS = [
-    "Tizimín esq. Av. Chicoasén",
-    "Tizimín esq. Seyé",
-    "Tizimín esq. Pomuch",
-    "Tizimín esq. Sacalum",
-    "Tizimín esq. Tulum",
-    "Tizimín esq. Tekax",
-    "Tizimín esq. Tekit",
-    "Tizimín esq. Bécal",
-    "Tizimín esq. Bochil",
-    "Tizimín esq. Yobaín",
-    "Tizimín esq. Hopelchén",
-    "Tizimín esq. Izamal",
-    "Tizimín esq. Akil",
-    "Tizimín esq. Yucalpetén",
-    "Tizimín esq. Contoy",
-    "Tizimín esq. Cancún",
-    "Tizimín esq. Kinchil",
-    "Tizimín esq. Huehuetán",
-    "Tizimín esq. Calkiní",
-    "Tizimín esq. Tzinal",
-    "Tizimín esq. Pichucalco",
-    "Tizimín esq. Carretera Picacho-Ajusco"
-]
+COORDENADAS_ESQUINAS = {
+    "Tizimín esq. Av. Chicoasén": (19.29095, -99.22295),
+    "Tizimín esq. Seyé": (19.29108, -99.22215),
+    "Tizimín esq. Pomuch": (19.29122, -99.22130),
+    "Tizimín esq. Sacalum": (19.29136, -99.22048),
+    "Tizimín esq. Tulum": (19.29150, -99.21965),
+    "Tizimín esq. Tekax": (19.29164, -99.21882),
+    "Tizimín esq. Tekit": (19.29178, -99.21800),
+    "Tizimín esq. Bécal": (19.29192, -99.21718),
+    "Tizimín esq. Bochil": (19.29206, -99.21635),
+    "Tizimín esq. Yobaín": (19.29220, -99.21552),
+    "Tizimín esq. Hopelchén": (19.29234, -99.21470),
+    "Tizimín esq. Izamal": (19.29248, -99.21388),
+    "Tizimín esq. Akil": (19.29262, -99.21305),
+    "Tizimín esq. Yucalpetén": (19.29245, -99.21222),
+    "Tizimín esq. Contoy": (19.29222, -99.21140),
+    "Tizimín esq. Cancún": (19.29236, -99.21058),
+    "Tizimín esq. Kinchil": (19.29250, -99.20975),
+    "Tizimín esq. Huehuetán": (19.29264, -99.20892),
+    "Tizimín esq. Calkiní": (19.29278, -99.20810),
+    "Tizimín esq. Tzinal": (19.29292, -99.20728),
+    "Tizimín esq. Pichucalco": (19.29306, -99.20645),
+    "Tizimín esq. Carretera Picacho-Ajusco": (19.29320, -99.20560)
+}
 
-# Interpolación geométrica exacta a lo largo del eje de Calle Tizimín
-LAT_INICIO, LON_INICIO = 19.29550, -99.22230
-LAT_FIN, LON_FIN = 19.29972, -99.21020
-
-COORDENADAS_ESQUINAS = {}
-total_esquinas = len(ESQUINAS_ORDENADAS) - 1
-for idx, nombre in enumerate(ESQUINAS_ORDENADAS):
-    fraccion = idx / total_esquinas
-    lat_interp = round(LAT_INICIO + fraccion * (LAT_FIN - LAT_INICIO), 6)
-    lon_interp = round(LON_INICIO + fraccion * (LON_FIN - LON_INICIO), 6)
-    COORDENADAS_ESQUINAS[nombre] = (lat_interp, lon_interp)
+ESQUINAS_ORDENADAS = list(COORDENADAS_ESQUINAS.keys())
 
 # ==============================================================================
 # 3. MODELO DE DATOS Y MOTOR DE CÁLCULO INTERNO
@@ -291,15 +320,15 @@ with tab_mapa:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Centrado exactamente en el punto medio de Calle Tizimín
-        mapa = folium.Map(location=[19.2976, -99.2162], zoom_start=16, tiles="OpenStreetMap")
+        # Centrado exactamente sobre Calle Tizimín
+        mapa = folium.Map(location=[19.2922, -99.2145], zoom_start=16, tiles="OpenStreetMap")
 
-        # Dibujamos una línea sutil resaltando el corredor de Calle Tizimín
+        # Dibujamos la línea azul siguiendo el trazo real de todas las esquinas
         folium.PolyLine(
-            locations=[[LAT_INICIO, LON_INICIO], [LAT_FIN, LON_FIN]],
-            color="#3B82F6",
+            locations=list(COORDENADAS_ESQUINAS.values()),
+            color="#2563EB",
             weight=5,
-            opacity=0.45,
+            opacity=0.65,
             tooltip="Corredor Calle Tizimín"
         ).add_to(mapa)
 
@@ -318,10 +347,10 @@ with tab_mapa:
             img_tag = f'<img src="data:image/jpeg;base64,{b.foto_base64}" width="200" style="border-radius:8px; margin-bottom:8px;"><br>' if b.foto_base64 else ""
 
             popup_html = f"""
-            <div style="font-family: 'Segoe UI', sans-serif; width: 220px; font-size: 13px; color: #1E293B;">
+            <div style="font-family: 'Segoe UI', sans-serif; width: 220px; font-size: 13px; color: #1E293B; background: #FFFFFF;">
                 {img_tag}
                 <strong style="font-size:14px; color:#0F172A;">{b.tramo}</strong><br>
-                <span style="background:#F1F5F9; padding:2px 6px; border-radius:4px; font-size:11px;">
+                <span style="background:#EFF6FF; color:#1D4ED8; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600;">
                     👥 {b.reportes_count} reporte(s) vecinal(es)
                 </span>
                 <hr style="margin:8px 0; border-color:#E2E8F0;">
@@ -358,7 +387,6 @@ with tab_mapa:
             puesto += 1
         st.dataframe(pd.DataFrame(lista_ordenada), use_container_width=True, hide_index=True)
 
-        # Opción discreta al final para limpiar registros de prueba antiguos
         with st.expander("⚙️ Administración de registros"):
             if st.button("🗑️ Limpiar todos los registros de prueba del mapa"):
                 session = Session()

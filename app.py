@@ -144,7 +144,7 @@ ESQUINAS_ORDENADAS = [
 ]
 
 # Línea recta calibrada milimétricamente sobre Calle Tizimín: de Av. Maní a Blvd. Picacho-Ajusco
-LAT_INICIO, LON_INICIO = 19.28816, -99.23755   # Cruce exacto con Av. Maní
+LAT_INICIO, LON_INICIO = 19.28824, -99.23628   # Cruce exacto con Av. Maní
 LAT_FIN, LON_FIN = 19.28941, -99.21790         # Cruce exacto con Blvd. Picacho-Ajusco
 
 COORDENADAS_ESQUINAS = {}
@@ -317,7 +317,7 @@ with tab_mapa:
     session.close()
 
     # Centrado exactamente entre Av. Maní y Blvd. Picacho-Ajusco
-    mapa = folium.Map(location=[19.28878, -99.22772], zoom_start=15, tiles="OpenStreetMap")
+    mapa = folium.Map(location=[19.28882, -99.22709], zoom_start=15, tiles="OpenStreetMap")
 
     # Línea recta azul sobre Calle Tizimín: de Av. Maní hasta Carretera Picacho-Ajusco
     folium.PolyLine(

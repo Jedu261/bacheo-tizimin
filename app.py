@@ -18,42 +18,42 @@ except ImportError:
 # ==========================================
 st.set_page_config(page_title="Baches Calle Tizimín", layout="wide")
 
-DB_NAME = "tizimin_v4.db"
+DB_NAME = "tizimin_v5.db"
 ADMIN_PASSWORD = "tizimin2026"
 
-# Las 32 esquinas calibradas sobre Calle Tizimín (Av. Maní -> Blvd. Picacho-Ajusco)
+# Las 32 esquinas calibradas cuadra por cuadra desde Av. Maní hasta Blvd. Picacho-Ajusco
 ESQUINAS_TIZIMIN = [
-    ("1. Av. Maní (Inicio del tramo)", 19.28840, -99.23380),
-    ("2. Calle Kopomá", 19.28845, -99.23325),
-    ("3. Calle Tecoh", 19.28849, -99.23270),
-    ("4. Calle Sotuta", 19.28854, -99.23215),
-    ("5. Calle Tetiz", 19.28858, -99.23160),
-    ("6. Calle Panabá", 19.28863, -99.23105),
-    ("7. Calle Sudzal", 19.28867, -99.23050),
-    ("8. Calle Cansahcab", 19.28872, -99.22995),
-    ("9. Calle Bokobá", 19.28876, -99.22940),
-    ("10. Calle Chicoasén", 19.28881, -99.22885),
-    ("11. Calle Pomuch", 19.28886, -99.22830),
-    ("12. Calle Seyé", 19.28890, -99.22775),
-    ("13. Calle Sacalum", 19.28895, -99.22720),
-    ("14. Calle Tulum", 19.28899, -99.22665),
-    ("15. Calle Tekax", 19.28904, -99.22610),
-    ("16. Calle Tekit", 19.28908, -99.22555),
-    ("17. Calle Bekal", 19.28913, -99.22500),
-    ("18. Calle Bochil", 19.28917, -99.22445),
-    ("19. Calle Yobaín", 19.28922, -99.22390),
-    ("20. Calle Hopelchén", 19.28926, -99.22335),
-    ("21. Calle Izamal", 19.28931, -99.22280),
-    ("22. Calle Akil", 19.28935, -99.22225),
-    ("23. Calle Yucalpetén", 19.28940, -99.22170),
-    ("24. Calle Contoy", 19.28945, -99.22115),
-    ("25. Calle Cancún", 19.28958, -99.22055),
-    ("26. Calle Kinchil", 19.28961, -99.21995),
-    ("27. Calle Calkiní", 19.28964, -99.21940),
-    ("28. Calle Huehuetán", 19.28967, -99.21890),
-    ("29. Calle Tzinal", 19.28970, -99.21845),
-    ("30. Calle Pichucalco", 19.28972, -99.21805),
-    ("31. Calle Citilcún", 19.28974, -99.21775),
+    ("1. Av. Maní (Inicio del tramo)", 19.28824, -99.23690),
+    ("2. Calle Kopomá", 19.28829, -99.23627),
+    ("3. Calle Tecoh", 19.28833, -99.23564),
+    ("4. Calle Sotuta", 19.28838, -99.23501),
+    ("5. Calle Tetiz", 19.28842, -99.23438),
+    ("6. Calle Panabá", 19.28847, -99.23375),
+    ("7. Calle Sudzal", 19.28851, -99.23312),
+    ("8. Calle Cansahcab", 19.28856, -99.23249),
+    ("9. Calle Bokobá", 19.28860, -99.23186),
+    ("10. Calle Chicoasén", 19.28865, -99.23123),
+    ("11. Calle Pomuch", 19.28869, -99.23060),
+    ("12. Calle Seyé", 19.28874, -99.22997),
+    ("13. Calle Sacalum", 19.28878, -99.22934),
+    ("14. Calle Tulum", 19.28883, -99.22871),
+    ("15. Calle Tekax", 19.28887, -99.22808),
+    ("16. Calle Tekit", 19.28892, -99.22745),
+    ("17. Calle Bekal", 19.28896, -99.22682),
+    ("18. Calle Bochil", 19.28901, -99.22619),
+    ("19. Calle Yobaín", 19.28905, -99.22556),
+    ("20. Calle Hopelchén", 19.28910, -99.22493),
+    ("21. Calle Izamal", 19.28914, -99.22430),
+    ("22. Calle Akil", 19.28919, -99.22367),
+    ("23. Calle Yucalpetén", 19.28923, -99.22304),
+    ("24. Calle Contoy", 19.28928, -99.22241),
+    ("25. Calle Cancún", 19.28946, -99.22175),
+    ("26. Calle Kinchil", 19.28951, -99.22112),
+    ("27. Calle Calkiní", 19.28955, -99.22049),
+    ("28. Calle Huehuetán", 19.28960, -99.21986),
+    ("29. Calle Tzinal", 19.28964, -99.21923),
+    ("30. Calle Pichucalco", 19.28969, -99.21860),
+    ("31. Calle Citilcún", 19.28973, -99.21805),
     ("32. Carretera / Blvd. Picacho-Ajusco (Fin)", 19.28976, -99.21750),
 ]
 
@@ -159,10 +159,16 @@ def detectar_tramo_por_gps(lat_gps, lon_gps):
     _, esq2 = distancias[1]
     return d1, esq1, f"Entre {esq1} y {esq2}"
 
-def proyectar_degradacion_integral(area_inicial, severidad, dias=30):
-    k = 0.45
-    crecimiento = 0.5 * k * severidad * (dias ** 2)
-    return round(area_inicial + crecimiento, 1)
+def calcular_degradacion_integral(area_inicial, severidad, num_zonas=0, dias=30):
+    k_sev = 0.35 * severidad
+    k_trafico = 0.20 * (1 + num_zonas)
+    k_agua = 0.25
+    tasa_total = k_sev + k_trafico + k_agua
+
+    desgaste_acumulado = 0.5 * tasa_total * (dias ** 2)
+    area_30d = round(area_inicial + desgaste_acumulado, 1)
+    indice_deg = min(round((desgaste_acumulado / 1800.0) * 100, 1), 100.0)
+    return area_30d, indice_deg
 
 def probabilidad_riesgo_bayes(severidad, num_zonas):
     prior = 0.15 + (severidad * 0.10)
@@ -175,7 +181,7 @@ def modelo_financiero_completo(area_cm2, severidad, num_zonas):
     m2_hoy = area_cm2 / 10000.0
     costo_preventivo_hoy = max(420.0, round(m2_hoy * 1050.0, 2))
 
-    area_30d = proyectar_degradacion_integral(area_cm2, severidad, 30)
+    area_30d, _ = calcular_degradacion_integral(area_cm2, severidad, num_zonas, 30)
     m2_30d = area_30d / 10000.0
     costo_reencarpetado = max(950.0, round(m2_30d * 2100.0, 2))
 
@@ -283,11 +289,11 @@ def cargar_ejemplos_tizimin():
         conn.close()
         registrar_reporte_ciudadano(
             "14. Calle Tulum", "Entre 13. Calle Sacalum y 15. Calle Tekax",
-            19.28899, -99.22665, "Carril dirección Picacho-Ajusco", 4, 850.0, [1], False
+            19.28883, -99.22871, "Carril dirección Picacho-Ajusco", 4, 850.0, [1], False
         )
         registrar_reporte_ciudadano(
             "24. Calle Contoy", "Entre 23. Calle Yucalpetén y 25. Calle Cancún",
-            19.28945, -99.22115, "Justo antes del quiebre de la calle", 3, 500.0, [3], False
+            19.28928, -99.22241, "Justo antes del quiebre de la calle", 3, 500.0, [3], False
         )
     else:
         conn.close()
@@ -330,7 +336,7 @@ if st.session_state.es_admin:
     tabs = st.tabs([
         "🗺️ Mapa y Baches Activos",
         "➕ Reportar un Bache",
-        "🔒 Panel Admin (Modelo Financiero, Matemáticas y BD)"
+        "🔒 Panel Admin (Modelo Financiero, Degradación y Entidades)"
     ])
 else:
     tabs = st.tabs([
@@ -354,13 +360,13 @@ with tabs[0]:
     )
 
     mapa = folium.Map(
-        location=[19.28910, -99.22565],
+        location=[19.28900, -99.22720],
         zoom_start=15,
         min_zoom=14,
         max_bounds=True,
         min_lat=19.2855,
         max_lat=19.2930,
-        min_lon=-99.2360,
+        min_lon=-99.2390,
         max_lon=-99.2150
     )
 
@@ -592,11 +598,11 @@ with tabs[1]:
                 st.success(f"✅ ¡Listo! Tu reporte quedó guardado como **Bache #{folio_res}** y ya aparece en el mapa.")
 
 # ------------------------------------------
-# PESTAÑA 3 (SOLO ADMIN): MODELO FINANCIERO, MATEMÁTICAS Y BD
+# PESTAÑA 3 (SOLO ADMIN): MODELO FINANCIERO, DEGRADACIÓN Y ENTIDADES
 # ------------------------------------------
 if st.session_state.es_admin:
     with tabs[2]:
-        st.subheader("🔒 Panel de Administrador — Modelo Financiero y Análisis Técnico")
+        st.subheader("🔒 Panel de Administrador — Modelos Matemáticos, Financieros y Entidades")
         conn = get_connection()
 
         df_admin = pd.read_sql_query(
@@ -609,13 +615,15 @@ if st.session_state.es_admin:
         )
 
         if not df_admin.empty:
-            areas_30, riesgos, c_prev_list, c_reenc_list, c_danos_list, c_tot_no_list, ahorro_list = [], [], [], [], [], [], []
+            areas_30, deg_list, riesgos, c_prev_list, c_reenc_list, c_danos_list, c_tot_no_list, ahorro_list = [], [], [], [], [], [], [], []
             for _, r in df_admin.iterrows():
                 cur = conn.cursor()
                 cur.execute("SELECT COUNT(*) FROM bache_zona WHERE id_bache = ?;", (int(r["Folio"]),))
                 nz = cur.fetchone()[0]
 
-                areas_30.append(proyectar_degradacion_integral(r["Area_cm2"], r["Severidad"], 30))
+                a30, idx_deg = calcular_degradacion_integral(r["Area_cm2"], r["Severidad"], nz, 30)
+                areas_30.append(a30)
+                deg_list.append(f"{idx_deg}%")
                 riesgos.append(f"{probabilidad_riesgo_bayes(r['Severidad'], nz)}%")
 
                 c_prev, c_reenc, c_danos, c_tot_no, ahorro = modelo_financiero_completo(
@@ -627,6 +635,7 @@ if st.session_state.es_admin:
                 c_tot_no_list.append(c_tot_no)
                 ahorro_list.append(ahorro)
 
+            df_admin["Indice_Degradacion_30d"] = deg_list
             df_admin["Area_30d_cm2"] = areas_30
             df_admin["Riesgo_Bayes"] = riesgos
             df_admin["Bacheo_Hoy_MXN"] = c_prev_list
@@ -642,8 +651,79 @@ if st.session_state.es_admin:
                 k2.metric("Costo por Inacción + Daños a Terceros", f"${df_act_fin['Costo_No_Reparar_MXN'].sum():,.2f} MXN")
                 k3.metric("Ahorro Neto al Atender a Tiempo", f"${df_act_fin['Ahorro_Preventivo_MXN'].sum():,.2f} MXN")
 
-            st.write("**Comparativa Financiera (Bacheo $1,050/m² vs. Daños a Terceros y Reencarpetado) y Modelos:**")
+            st.write("**Índice de Degradación (Integral), Riesgo Bayesiano y Comparativa Financiera ($1,050/m² vs. Daños a Terceros):**")
             st.dataframe(df_admin, use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.subheader("🗂️ Mapa de Entidades (Modelo Entidad-Relación de 5 Tablas)")
+        st.caption("Arquitectura relacional con llaves primarias (PK), foráneas (FK) y cardinalidades 1:1, 1:M y M:M.")
+
+        diagrama_er = """
+        digraph ER {
+            rankdir=LR;
+            node [shape=plain, fontname="Helvetica", fontsize=11];
+            edge [fontname="Helvetica", fontsize=10, color="#1E88E5", penwidth=1.6];
+
+            bache [label=<
+                <table border="1" cellborder="1" cellspacing="0" cellpadding="5" bgcolor="#E3F2FD">
+                    <tr><td bgcolor="#1565C0"><font color="white"><b>bache (Entidad Central)</b></font></td></tr>
+                    <tr><td align="left">🔑 <b>id_bache (PK)</b></td></tr>
+                    <tr><td align="left">fecha_registro</td></tr>
+                    <tr><td align="left">estatus</td></tr>
+                    <tr><td align="left">severidad (1-5)</td></tr>
+                    <tr><td align="left">area_inicial_cm2</td></tr>
+                    <tr><td align="left">baches_cercanos</td></tr>
+                    <tr><td align="left">indice_prioridad</td></tr>
+                </table>
+            >];
+
+            ubicacion [label=<
+                <table border="1" cellborder="1" cellspacing="0" cellpadding="5" bgcolor="#F1F8E9">
+                    <tr><td bgcolor="#2E7D32"><font color="white"><b>ubicacion_bache</b></font></td></tr>
+                    <tr><td align="left">🔑🔗 <b>id_bache (PK, FK)</b></td></tr>
+                    <tr><td align="left">esquina_ref</td></tr>
+                    <tr><td align="left">entre_calles</td></tr>
+                    <tr><td align="left">latitud / longitud</td></tr>
+                    <tr><td align="left">detalle_ubicacion</td></tr>
+                    <tr><td align="left">tiene_foto</td></tr>
+                </table>
+            >];
+
+            historial [label=<
+                <table border="1" cellborder="1" cellspacing="0" cellpadding="5" bgcolor="#FFF8E1">
+                    <tr><td bgcolor="#EF6C00"><font color="white"><b>historial_bache</b></font></td></tr>
+                    <tr><td align="left">🔑 <b>id_evento (PK)</b></td></tr>
+                    <tr><td align="left">🔗 <b>id_bache (FK)</b></td></tr>
+                    <tr><td align="left">fecha_evento</td></tr>
+                    <tr><td align="left">tipo_evento</td></tr>
+                    <tr><td align="left">detalle</td></tr>
+                </table>
+            >];
+
+            bache_zona [label=<
+                <table border="1" cellborder="1" cellspacing="0" cellpadding="5" bgcolor="#F3E5F5">
+                    <tr><td bgcolor="#6A1B9A"><font color="white"><b>bache_zona (Puente M:M)</b></font></td></tr>
+                    <tr><td align="left">🔑🔗 <b>id_bache (PK, FK)</b></td></tr>
+                    <tr><td align="left">🔑🔗 <b>id_zona (PK, FK)</b></td></tr>
+                </table>
+            >];
+
+            zona [label=<
+                <table border="1" cellborder="1" cellspacing="0" cellpadding="5" bgcolor="#FCE4EC">
+                    <tr><td bgcolor="#AD1457"><font color="white"><b>zona_importante</b></font></td></tr>
+                    <tr><td align="left">🔑 <b>id_zona (PK)</b></td></tr>
+                    <tr><td align="left">nombre</td></tr>
+                    <tr><td align="left">puntos_extra</td></tr>
+                </table>
+            >];
+
+            bache -> ubicacion [label="  1 : 1  ", dir=both, arrowhead=tee, arrowtail=tee];
+            bache -> historial [label="  1 : M  ", dir=both, arrowhead=crow, arrowtail=tee];
+            bache -> bache_zona [label="  1 : M  ", dir=both, arrowhead=crow, arrowtail=tee];
+            zona -> bache_zona [label="  1 : M (M:M)  ", dir=both, arrowhead=crow, arrowtail=tee];
+        }
+        """
+        st.graphviz_chart(diagrama_er, use_container_width=True)
 
         st.divider()
         st.write("**Explorador de las 5 Tablas Relacionales (SQLite):**")

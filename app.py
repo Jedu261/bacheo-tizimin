@@ -18,10 +18,10 @@ except ImportError:
 # ==========================================
 st.set_page_config(page_title="Baches Calle Tizimín", layout="wide")
 
-DB_NAME = "tizimin_v4.db"  # Base limpia con las coordenadas exactas sobre Calle Tizimín
+DB_NAME = "tizimin_v4.db"
 ADMIN_PASSWORD = "tizimin2026"
 
-# Las 32 esquinas calibradas exactamente sobre Calle Tizimín (Av. Maní -> Blvd. Picacho-Ajusco)
+# Las 32 esquinas calibradas sobre Calle Tizimín (Av. Maní -> Blvd. Picacho-Ajusco)
 ESQUINAS_TIZIMIN = [
     ("1. Av. Maní (Inicio del tramo)", 19.28840, -99.23380),
     ("2. Calle Kopomá", 19.28845, -99.23325),
@@ -72,59 +72,54 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS bache (
-            id_bache INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha_registro TEXT NOT NULL,
-            estatus TEXT DEFAULT 'Reportado',
-            severidad INTEGER CHECK (severidad BETWEEN 1 AND 5),
-            area_inicial_cm2 REAL DEFAULT 400.0,
-            baches_cercanos INTEGER DEFAULT 0,
-            indice_prioridad INTEGER DEFAULT 0
-        );
-    """)
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS bache ("
+        "id_bache INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "fecha_registro TEXT NOT NULL, "
+        "estatus TEXT DEFAULT 'Reportado', "
+        "severidad INTEGER CHECK (severidad BETWEEN 1 AND 5), "
+        "area_inicial_cm2 REAL DEFAULT 400.0, "
+        "baches_cercanos INTEGER DEFAULT 0, "
+        "indice_prioridad INTEGER DEFAULT 0);"
+    )
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS ubicacion_bache (
-            id_bache INTEGER PRIMARY KEY,
-            esquina_ref TEXT NOT NULL,
-            entre_calles TEXT,
-            latitud REAL NOT NULL,
-            longitud REAL NOT NULL,
-            detalle_ubicacion TEXT,
-            tiene_foto INTEGER DEFAULT 0,
-            FOREIGN KEY (id_bache) REFERENCES bache(id_bache) ON DELETE CASCADE
-        );
-    """)
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS ubicacion_bache ("
+        "id_bache INTEGER PRIMARY KEY, "
+        "esquina_ref TEXT NOT NULL, "
+        "entre_calles TEXT, "
+        "latitud REAL NOT NULL, "
+        "longitud REAL NOT NULL, "
+        "detalle_ubicacion TEXT, "
+        "tiene_foto INTEGER DEFAULT 0, "
+        "FOREIGN KEY (id_bache) REFERENCES bache(id_bache) ON DELETE CASCADE);"
+    )
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS historial_bache (
-            id_evento INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_bache INTEGER NOT NULL,
-            fecha_evento TEXT NOT NULL,
-            tipo_evento TEXT NOT NULL,
-            detalle TEXT NOT NULL,
-            FOREIGN KEY (id_bache) REFERENCES bache(id_bache) ON DELETE CASCADE
-        );
-    """)
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS historial_bache ("
+        "id_evento INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "id_bache INTEGER NOT NULL, "
+        "fecha_evento TEXT NOT NULL, "
+        "tipo_evento TEXT NOT NULL, "
+        "detalle TEXT NOT NULL, "
+        "FOREIGN KEY (id_bache) REFERENCES bache(id_bache) ON DELETE CASCADE);"
+    )
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS zona_importante (
-            id_zona INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT UNIQUE NOT NULL,
-            puntos_extra INTEGER NOT NULL
-        );
-    """)
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS zona_importante ("
+        "id_zona INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "nombre TEXT UNIQUE NOT NULL, "
+        "puntos_extra INTEGER NOT NULL);"
+    )
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS bache_zona (
-            id_bache INTEGER,
-            id_zona INTEGER,
-            PRIMARY KEY (id_bache, id_zona),
-            FOREIGN KEY (id_bache) REFERENCES bache(id_bache) ON DELETE CASCADE,
-            FOREIGN KEY (id_zona) REFERENCES zona_importante(id_zona) ON DELETE RESTRICT
-        );
-    """)
+    cur.execute(
+        "CREATE TABLE IF NOT EXISTS bache_zona ("
+        "id_bache INTEGER, "
+        "id_zona INTEGER, "
+        "PRIMARY KEY (id_bache, id_zona), "
+        "FOREIGN KEY (id_bache) REFERENCES bache(id_bache) ON DELETE CASCADE, "
+        "FOREIGN KEY (id_zona) REFERENCES zona_importante(id_zona) ON DELETE RESTRICT);"
+    )
 
     cur.execute("SELECT COUNT(*) FROM zona_importante;")
     if cur.fetchone()[0] == 0:
@@ -192,5 +187,39 @@ def modelo_financiero_completo(area_cm2, severidad, num_zonas):
 
 def recalcular_prioridades(conn):
     cur = conn.cursor()
-    cur.execute("""
-        SELECT
+    cur.execute(
+        "SELECT b.id_bache, b.severidad, u.latitud, u.longitud "
+        "FROM bache b JOIN ubicacion_bache u ON b.id_bache = u.id_bache "
+        "WHERE b.estatus != 'Reparado';"
+    )
+    activos = cur.fetchall()
+
+    for id_act, sev, lat1, lon1 in activos:
+        vecinos = 0
+        for id_otro, _, lat2, lon2 in activos:
+            if id_act != id_otro and distancia_metros(lat1, lon1, lat2, lon2) <= 60.0:
+                vecinos += 1
+
+        cur.execute(
+            "SELECT z.puntos_extra FROM bache_zona bz "
+            "JOIN zona_importante z ON bz.id_zona = z.id_zona "
+            "WHERE bz.id_bache = ?;",
+            (id_act,)
+        )
+        pts_zonas = sum(r[0] for r in cur.fetchall())
+
+        base = sev * 10
+        bonus_vecinos = min(vecinos * 10, 20)
+        prioridad_total = min(base + pts_zonas + bonus_vecinos, 100)
+
+        cur.execute(
+            "UPDATE bache SET baches_cercanos = ?, indice_prioridad = ? WHERE id_bache = ?;",
+            (vecinos, prioridad_total, id_act)
+        )
+
+    conn.commit()
+
+def registrar_reporte_ciudadano(esquina, entre_calles, lat, lon, detalle, severidad, area_cm2, ids_zonas, tiene_foto):
+    conn = get_connection()
+    cur = conn.cursor()
+    ahora = datetime.now().strftime("%

@@ -7,34 +7,36 @@ from datetime import datetime
 import folium
 from streamlit_folium import st_folium
 
-# Configuración de la página
-st.set_page_config(page_title="Gestión Vial Calle Tizimín", layout="wide")
+# ==========================================
+# CONFIGURACIÓN GENERAL Y CONTRASEÑA ADMIN
+# ==========================================
+st.set_page_config(page_title="Baches Calle Tizimín", layout="wide")
 
-DB_NAME = "tizimin_baches.db"
+DB_NAME = "tizimin_v2.db"
+ADMIN_PASSWORD = "tizimin2026"  # <-- Puedes cambiar esta contraseña cuando quieras
 
-# Catálogo de esquinas del corredor Calle Tizimín (Av. Maní -> Picacho-Ajusco)
+# Coordenadas reales siguiendo el trazo horizontal de Calle Tizimín (Av. Maní -> Picacho-Ajusco)
 ESQUINAS_TIZIMIN = {
-    "Seleccionar manualmente (GPS)...": (19.293500, -99.218500),
-    "Esq. Av. Maní (Inicio tramo)": (19.291200, -99.216100),
-    "Esq. Calle Tekax": (19.291850, -99.216800),
-    "Esq. Calle Peto": (19.292400, -99.217400),
-    "Esq. Calle Oxkutzcab": (19.293050, -99.218050),
-    "Esq. Calle Ticul (Zona Escolar)": (19.293600, -99.218600),
-    "Esq. Calle Maxcanú": (19.294200, -99.219250),
-    "Esq. Calle Halachó": (19.294850, -99.219900),
-    "Esq. Calle Umán": (19.295500, -99.220550),
-    "Esq. Calle Hunucmá": (19.296150, -99.221200),
-    "Esq. Calle Motul": (19.296800, -99.221850),
-    "Esq. Calle Izamal": (19.297450, -99.222500),
-    "Esq. Calle Dzidzantún": (19.298100, -99.223150),
-    "Esq. Calle Temax": (19.298750, -99.223800),
-    "Esq. Calle Buctzotz": (19.299400, -99.224450),
-    "Esq. Calle Espita": (19.300050, -99.225100),
-    "Esq. Carretera Picacho-Ajusco (Fin tramo)": (19.300800, -99.225900),
+    "1. Esq. Avenida Maní (Inicio)": (19.29125, -99.22910),
+    "2. Esq. Calle Kopomá": (19.29133, -99.22820),
+    "3. Esq. Calle Tecoh": (19.29140, -99.22745),
+    "4. Esq. Calle Sotuta / Tetiz": (19.29148, -99.22665),
+    "5. Esq. Calle Cansahcab": (19.29156, -99.22580),
+    "6. Esq. Calle Chicoasén": (19.29164, -99.22500),
+    "7. Esq. Calle Pomuch / Seyé": (19.29172, -99.22420),
+    "8. Esq. Calle Tulum / Sacalum": (19.29180, -99.22335),
+    "9. Esq. Calle Tekax": (19.29188, -99.22260),
+    "10. Esq. Calle Bochil / Bekal": (19.29196, -99.22180),
+    "11. Esq. Calle Yobaín": (19.29204, -99.22100),
+    "12. Esq. Calle Akil": (19.29211, -99.22025),
+    "13. Esq. Calle Yucalpetén": (19.29218, -99.21950),
+    "14. Esq. Calle Contoy / Cancún": (19.29225, -99.21880),
+    "15. Esq. Calle Kinchil / Huehuetán": (19.29231, -99.21825),
+    "16. Esq. Carretera Picacho-Ajusco (Fin)": (19.29238, -99.21785),
 }
 
 # ==========================================
-# 1. BASE DE DATOS RELACIONAL (5 ENTIDADES)
+# 1. BASE DE DATOS RELACIONAL (5 TABLAS)
 # ==========================================
 def get_connection():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -45,7 +47,7 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
 
-    # 1. Entidad Central: bache
+    # 1. Entidad Central
     cur.execute("""
         CREATE TABLE IF NOT EXISTS bache (
             id_bache INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +60,7 @@ def init_db():
         );
     """)
 
-    # 2. Relación 1:1 -> ubicacion_bache
+    # 2. Relación 1:1 (Ubicación)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ubicacion_bache (
             id_bache INTEGER PRIMARY KEY,
@@ -71,7 +73,7 @@ def init_db():
         );
     """)
 
-    # 3. Relación 1:M -> historial_bache
+    # 3. Relación 1:M (Historial de lo que pasa con el bache)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS historial_bache (
             id_evento INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,12 +81,11 @@ def init_db():
             fecha_evento TEXT NOT NULL,
             tipo_evento TEXT NOT NULL,
             detalle TEXT NOT NULL,
-            quien_reporta TEXT,
             FOREIGN KEY (id_bache) REFERENCES bache(id_bache) ON DELETE CASCADE
         );
     """)
 
-    # 4. Catálogo -> zona_importante
+    # 4. Catálogo de Zonas Importantes
     cur.execute("""
         CREATE TABLE IF NOT EXISTS zona_importante (
             id_zona INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +94,7 @@ def init_db():
         );
     """)
 
-    # 5. Relación M:M -> bache_zona
+    # 5. Relación M:M (Bache <-> Zonas)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS bache_zona (
             id_bache INTEGER,
@@ -104,15 +105,14 @@ def init_db():
         );
     """)
 
-    # Poblar catálogo de zonas importantes
     cur.execute("SELECT COUNT(*) FROM zona_importante;")
     if cur.fetchone()[0] == 0:
         zonas = [
-            ("Escuela o Centro Educativo", 20),
-            ("Hospital o Clínica", 25),
-            ("Parada de Transporte Público", 15),
-            ("Cruce con Avenida Principal", 15),
-            ("Zona Comercial / Mercado", 10)
+            ("🏫 Escuela o Kinder cerca", 20),
+            ("🏥 Clínica u Hospital cerca", 25),
+            ("🚌 Parada de camión / combi", 15),
+            ("🛣️ Cruce muy transitado", 15),
+            ("🏪 Mercado, tienda o zona comercial", 10)
         ]
         cur.executemany("INSERT INTO zona_importante (nombre, puntos_extra) VALUES (?, ?);", zonas)
 
@@ -120,10 +120,9 @@ def init_db():
     conn.close()
 
 # ==========================================
-# 2. MODELOS MATEMÁTICOS Y ESTRUCTURA DE DATOS
+# 2. LÓGICA DE PRIORIDAD Y MODELOS
 # ==========================================
 def distancia_metros(lat1, lon1, lat2, lon2):
-    """Distancia geodésica en metros entre dos coordenadas."""
     R = 6371000
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -132,20 +131,11 @@ def distancia_metros(lat1, lon1, lat2, lon2):
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 def proyectar_degradacion_integral(area_inicial, severidad, dias=30):
-    """
-    Cálculo Integral: Estima el área acumulada del bache tras 't' días
-    integrando una tasa de desgaste lineal r(t) = k * severidad * t.
-    """
     k = 0.45
-    # Integral definida de 0 a T de (k * severidad * t) dt = 0.5 * k * severidad * T^2
     crecimiento = 0.5 * k * severidad * (dias ** 2)
     return round(area_inicial + crecimiento, 1)
 
 def probabilidad_riesgo_bayes(severidad, num_zonas):
-    """
-    Probabilidad: Estima el riesgo de incidente vial usando actualización bayesiana
-    a partir de la severidad física y la afluencia de zonas importantes.
-    """
     prior = 0.15 + (severidad * 0.10)
     verosimilitud = 0.85 if num_zonas > 0 else 0.45
     numerador = prior * verosimilitud
@@ -153,17 +143,12 @@ def probabilidad_riesgo_bayes(severidad, num_zonas):
     return round((numerador / denominador) * 100, 1)
 
 def estimar_costos(area_cm2):
-    """Contabilidad: Costo preventivo hoy vs. costo correctivo a 30 días (MXN)."""
     m2 = area_cm2 / 10000.0
     costo_hoy = max(450.0, round(m2 * 1850.0, 2))
     costo_futuro = round(costo_hoy * 2.65, 2)
     return costo_hoy, costo_futuro
 
 def recalcular_prioridades(conn):
-    """
-    Diferenciador de densidad: Revisa todos los baches activos, cuenta vecinos a <50m
-    y actualiza su índice de prioridad (0-100).
-    """
     cur = conn.cursor()
     cur.execute("""
         SELECT b.id_bache, b.severidad, u.latitud, u.longitud
@@ -176,7 +161,7 @@ def recalcular_prioridades(conn):
     for id_act, sev, lat1, lon1 in activos:
         vecinos = 0
         for id_otro, _, lat2, lon2 in activos:
-            if id_act != id_otro and distancia_metros(lat1, lon1, lat2, lon2) <= 50.0:
+            if id_act != id_otro and distancia_metros(lat1, lon1, lat2, lon2) <= 60.0:
                 vecinos += 1
 
         cur.execute("""
@@ -199,12 +184,12 @@ def recalcular_prioridades(conn):
 
     conn.commit()
 
-def procesar_nuevo_reporte(esquina, lat, lon, detalle, severidad, area_cm2, ids_zonas, quien, tiene_foto):
+def registrar_reporte_ciudadano(esquina, lat, lon, detalle, severidad, area_cm2, ids_zonas, tiene_foto):
     conn = get_connection()
     cur = conn.cursor()
     ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # 1. Filtro de duplicados (< 10 metros)
+    # Filtro de duplicados (< 12 metros)
     cur.execute("""
         SELECT b.id_bache, u.latitud, u.longitud
         FROM bache b
@@ -212,12 +197,11 @@ def procesar_nuevo_reporte(esquina, lat, lon, detalle, severidad, area_cm2, ids_
         WHERE b.estatus != 'Reparado';
     """)
     for id_ex, lat_ex, lon_ex in cur.fetchall():
-        if distancia_metros(lat, lon, lat_ex, lon_ex) < 10.0:
-            # Es el mismo bache: agregamos evento a su historial (1:M) y subimos severidad si aplica
+        if distancia_metros(lat, lon, lat_ex, lon_ex) < 12.0:
             cur.execute("""
-                INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle, quien_reporta)
-                VALUES (?, ?, 'Reporte reincidente (<10m)', ?, ?);
-            """, (id_ex, ahora, f"Nuevo reporte en el mismo punto. Severidad reportada: {severidad}/5. {detalle}", quien))
+                INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle)
+                VALUES (?, ?, 'Nuevo reporte ciudadano', ?);
+            """, (id_ex, ahora, f"Otro vecino reportó este mismo punto. {detalle}"))
             cur.execute("""
                 UPDATE bache
                 SET severidad = MAX(severidad, ?), estatus = 'En seguimiento'
@@ -226,9 +210,9 @@ def procesar_nuevo_reporte(esquina, lat, lon, detalle, severidad, area_cm2, ids_
             conn.commit()
             recalcular_prioridades(conn)
             conn.close()
-            return id_ex, True  # True indica que se fusionó con uno existente
+            return id_ex, True
 
-    # 2. Si está a >= 10 metros, crear nuevo bache
+    # Nuevo bache
     cur.execute("""
         INSERT INTO bache (fecha_registro, estatus, severidad, area_inicial_cm2)
         VALUES (?, 'Reportado', ?, ?);
@@ -244,45 +228,76 @@ def procesar_nuevo_reporte(esquina, lat, lon, detalle, severidad, area_cm2, ids_
         cur.execute("INSERT INTO bache_zona (id_bache, id_zona) VALUES (?, ?);", (id_nuevo, id_z))
 
     cur.execute("""
-        INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle, quien_reporta)
-        VALUES (?, ?, 'Registro inicial', ?, ?);
-    """, (id_nuevo, ahora, f"Bache registrado en {esquina}. Severidad {severidad}/5.", quien))
+        INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle)
+        VALUES (?, ?, 'Reporte inicial', ?);
+    """, (id_nuevo, ahora, f"Registrado en {esquina}. {detalle}"))
 
     conn.commit()
     recalcular_prioridades(conn)
     conn.close()
     return id_nuevo, False
 
-def cargar_ejemplos():
+def cargar_ejemplos_tizimin():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM bache;")
     if cur.fetchone()[0] == 0:
         conn.close()
-        procesar_nuevo_reporte("Esq. Calle Ticul (Zona Escolar)", 19.293600, -99.218600, "Carril derecho rumbo a Picacho", 4, 650.0, [1], "Sistema", False)
-        procesar_nuevo_reporte("Esq. Calle Oxkutzcab", 19.293350, -99.218350, "A ~35m del anterior, bache profundo", 3, 500.0, [3], "Vecino", False)
+        registrar_reporte_ciudadano("8. Esq. Calle Tulum / Sacalum", 19.29180, -99.22335, "Carril dirección Picacho-Ajusco", 4, 800.0, [1], False)
+        registrar_reporte_ciudadano("9. Esq. Calle Tekax", 19.29188, -99.22285, "A unos metros del cruce", 3, 450.0, [3], False)
     else:
         conn.close()
 
 init_db()
-cargar_ejemplos()
+cargar_ejemplos_tizimin()
 
 # ==========================================
-# 3. INTERFAZ WEB (STREAMLIT + FOLIUM)
+# 3. BARRA LATERAL: ACCESO ADMINISTRADOR
 # ==========================================
-st.title("🛣️ Prototipo de Priorización Vial — Calle Tizimín")
-st.caption("Integración de Bases de Datos Relacionales, Estructura de Datos, Cálculo Integral, Probabilidad y Contabilidad.")
+if "es_admin" not in st.session_state:
+    st.session_state.es_admin = False
 
-tab_mapa, tab_registro, tab_analisis = st.tabs([
-    "🗺️ Mapa Folium, Historial y Reparaciones",
-    "➕ Reportar Bache (Esquinas / GPS)",
-    "📊 Modelos Matemáticos y Tablas SQL"
-])
+with st.sidebar:
+    st.header("📍 Calle Tizimín")
+    st.write("Corredor vial: Av. Maní a Carretera Picacho-Ajusco.")
+    st.divider()
+
+    if not st.session_state.es_admin:
+        with st.expander("🔐 Acceso Administrador"):
+            pwd = st.text_input("Contraseña", type="password", key="pwd_input")
+            if st.button("Entrar"):
+                if pwd == ADMIN_PASSWORD:
+                    st.session_state.es_admin = True
+                    st.rerun()
+                else:
+                    st.error("Contraseña incorrecta")
+    else:
+        st.success("Modo Administrador activo")
+        if st.button("Cerrar sesión"):
+            st.session_state.es_admin = False
+            st.rerun()
+
+# ==========================================
+# 4. INTERFAZ PRINCIPAL
+# ==========================================
+st.title("🛣️ Reporte y Seguimiento de Baches — Calle Tizimín")
+
+if st.session_state.es_admin:
+    tabs = st.tabs([
+        "🗺️ Mapa y Baches Activos",
+        "➕ Reportar un Bache",
+        "🔒 Panel Admin (Modelos y Base de Datos)"
+    ])
+else:
+    tabs = st.tabs([
+        "🗺️ Mapa y Baches Activos",
+        "➕ Reportar un Bache"
+    ])
 
 # ------------------------------------------
-# PESTAÑA 1: MAPA FOLIUM + CONSULTA + REPARACIÓN
+# PESTAÑA 1: MAPA (LÍNEA AZUL) + INFO + REPARACIÓN
 # ------------------------------------------
-with tab_mapa:
+with tabs[0]:
     conn = get_connection()
     df_activos = pd.read_sql_query("""
         SELECT 
@@ -290,8 +305,7 @@ with tab_mapa:
             b.indice_prioridad AS Prioridad,
             b.estatus AS Estatus,
             b.severidad AS Severidad,
-            b.area_inicial_cm2 AS Area_cm2,
-            b.baches_cercanos AS Vecinos_50m,
+            b.baches_cercanos AS Baches_Cerca,
             b.fecha_registro AS Fecha_Registro,
             u.esquina_ref AS Esquina,
             u.latitud AS lat,
@@ -302,202 +316,234 @@ with tab_mapa:
         WHERE b.estatus != 'Reparado';
     """, conn)
 
+    # Mapa centrado estrictamente en Calle Tizimín
+    mapa = folium.Map(
+        location=[19.29182, -99.22340],
+        zoom_start=16,
+        min_zoom=15,
+        max_bounds=True,
+        min_lat=19.2885,
+        max_lat=19.2955,
+        min_lon=-99.2315,
+        max_lon=-99.2155
+    )
+
+    # Recuperar la LÍNEA AZUL que atraviesa toda la Calle Tizimín
+    puntos_linea_azul = list(ESQUINAS_TIZIMIN.values())
+    folium.PolyLine(
+        locations=puntos_linea_azul,
+        color="#1E88E5",
+        weight=6,
+        opacity=0.85,
+        tooltip="Tramo monitoreado: Calle Tizimín"
+    ).add_to(mapa)
+
     if df_activos.empty:
-        st.success("🎉 ¡Todos los baches registrados en Calle Tizimín han sido reparados!")
+        st.success("🎉 ¡No hay baches pendientes en Calle Tizimín!")
+        st_folium(mapa, use_container_width=True, height=400, returned_objects=[])
     else:
-        # Aplicar Cola de Prioridad (heapq) para ordenar de mayor a menor urgencia
-        cola_prioridad = []
-        for _, row in df_activos.iterrows():
-            # Usamos -Prioridad porque heapq en Python es un min-heap
-            heapq.heappush(cola_prioridad, (-row["Prioridad"], row["Folio"]))
+        # Ordenar por Cola de Prioridad
+        cola = []
+        for _, r in df_activos.iterrows():
+            heapq.heappush(cola, (-r["Prioridad"], r["Folio"]))
+        orden = [heapq.heappop(cola)[1] for _ in range(len(cola))]
+        df_ord = df_activos.set_index("Folio").loc[orden].reset_index()
 
-        orden_folios = [heapq.heappop(cola_prioridad)[1] for _ in range(len(cola_prioridad))]
-        df_ordenado = df_activos.set_index("Folio").loc[orden_folios].reset_index()
+        col_mapa, col_lista = st.columns([1.35, 1])
 
-        col_m, col_t = st.columns([1.2, 1])
-
-        with col_m:
-            st.subheader("Mapa Interactivo (Folium)")
-            mapa = folium.Map(location=[19.2955, -99.2205], zoom_start=15)
-            for _, r in df_ordenado.iterrows():
+        with col_mapa:
+            st.subheader("Mapa de Calle Tizimín")
+            for _, r in df_ord.iterrows():
                 color = "red" if r["Prioridad"] >= 70 else ("orange" if r["Prioridad"] >= 45 else "blue")
-                popup_txt = f"<b>Folio #{r['Folio']}</b><br>Prioridad: {r['Prioridad']}/100<br>{r['Esquina']}"
+                popup_html = f"<b>Bache #{r['Folio']}</b><br>Urgencia: {r['Prioridad']}/100<br>{r['Esquina']}"
                 folium.Marker(
                     location=[r["lat"], r["lon"]],
-                    popup=folium.Popup(popup_txt, max_width=220),
-                    tooltip=f"Folio #{r['Folio']} (Prioridad: {r['Prioridad']})",
-                    icon=folium.Icon(color=color, icon="exclamation-sign")
+                    popup=folium.Popup(popup_html, max_width=220),
+                    tooltip=f"Bache #{r['Folio']} — Urgencia {r['Prioridad']}/100",
+                    icon=folium.Icon(color=color, icon="warning-sign")
                 ).add_to(mapa)
-            st_folium(mapa, width=600, height=380, returned_objects=[])
+            st_folium(mapa, use_container_width=True, height=400, returned_objects=[])
 
-        with col_t:
-            st.subheader("Cola de Prioridad (Urgencia)")
+        with col_lista:
+            st.subheader("Lista por Urgencia")
             st.dataframe(
-                df_ordenado[["Folio", "Prioridad", "Estatus", "Esquina", "Vecinos_50m"]],
+                df_ord[["Folio", "Prioridad", "Estatus", "Esquina"]],
                 use_container_width=True,
                 hide_index=True
             )
 
         st.divider()
-        st.subheader("🔍 Detalle del Bache y Verificación de Reparación")
+        st.subheader("🔍 Ver información de un bache o avisar si ya se reparó")
 
         opciones = {
-            f"Folio #{r['Folio']} — {r['Esquina']} (Prioridad: {r['Prioridad']}/100)": r["Folio"]
-            for _, r in df_ordenado.iterrows()
+            f"Bache #{r['Folio']} — {r['Esquina']} (Urgencia: {r['Prioridad']}/100)": r["Folio"]
+            for _, r in df_ord.iterrows()
         }
-        sel_label = st.selectbox("Selecciona un bache para revisar qué ha pasado con él:", list(opciones.keys()))
-        id_sel = int(opciones[sel_label])
-        b_sel = df_ordenado[df_ordenado["Folio"] == id_sel].iloc[0]
+        sel = st.selectbox("Elige un bache de la lista:", list(opciones.keys()))
+        id_sel = int(opciones[sel])
+        b_info = df_ord[df_ord["Folio"] == id_sel].iloc[0]
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Índice de Prioridad", f"{b_sel['Prioridad']} / 100")
-        m2.metric("Estatus", b_sel["Estatus"])
-        m3.metric("Baches a < 50 m", b_sel["Vecinos_50m"])
-        m4.metric("Fecha de Registro", b_sel["Fecha_Registro"])
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Urgencia", f"{b_info['Prioridad']} / 100")
+        c2.metric("Estatus", b_info["Estatus"])
+        c3.metric("Baches vecinos cerca", b_info["Baches_Cerca"])
+        c4.metric("Registrado el", b_info["Fecha_Registro"])
 
-        # Zonas importantes (M:M)
         df_z = pd.read_sql_query("""
-            SELECT z.nombre, z.puntos_extra
+            SELECT z.nombre
             FROM bache_zona bz
             JOIN zona_importante z ON bz.id_zona = z.id_zona
             WHERE bz.id_bache = ?;
         """, conn, params=(id_sel,))
         if not df_z.empty:
-            zonas_str = ", ".join([f"{z['nombre']} (+{z['puntos_extra']} pts)" for _, z in df_z.iterrows()])
-            st.info(f"**Zonas críticas cercanas:** {zonas_str}")
+            st.info("**Zonas importantes cercanas:** " + ", ".join(df_z["nombre"].tolist()))
 
-        # Bitácora histórica (1:M)
-        st.write("**📜 Historial de eventos de este bache:**")
+        st.write("**¿Qué ha pasado con este bache?**")
         df_hist = pd.read_sql_query("""
-            SELECT fecha_evento AS Fecha, tipo_evento AS Evento, detalle AS Detalle, quien_reporta AS Reportado_Por
+            SELECT fecha_evento AS Fecha, tipo_evento AS Movimiento, detalle AS Detalle
             FROM historial_bache
             WHERE id_bache = ?
             ORDER BY id_evento ASC;
         """, conn, params=(id_sel,))
         st.table(df_hist)
 
-        # Módulo para eliminar (borrado lógico) si ya se reparó
-        with st.expander("🛠️ ¿Ya se reparó este bache? Haz clic aquí para verificar y dar de baja"):
-            with st.form("form_reparacion"):
-                st.write("Antes de retirarlo del mapa activo, confirma los datos de la reparación:")
-                quien_v = st.text_input("¿Quién confirma la reparación?", value="Vecino de Calle Tizimín")
-                resultado_v = st.radio(
-                    "Estado físico observado en el pavimento:",
+        with st.expander("🛠️ ¿Ya repararon este bache? Haz clic aquí para confirmar"):
+            with st.form("form_verif_reparacion"):
+                estado_obs = st.radio(
+                    "¿Cómo se encuentra la calle actualmente?",
                     [
-                        "Sí, ya se reparó correctamente (asfalto nivelado y firme)",
-                        "Solo le echaron tierra o escombro (reparación provisional)",
-                        "Sigue igual o empeoró (mantener activo)"
+                        "Ya quedó bien reparado (pavimento parejo y firme)",
+                        "Solo le pusieron tierra o escombro (sigue mal)",
+                        "No lo han reparado y se hizo más grande"
                     ]
                 )
-                notas_v = st.text_area("Observaciones (fecha aproximada del bacheo, calidad del material, etc.):")
-                btn_v = st.form_submit_button("Registrar Verificación")
-
-                if btn_v:
+                detalle_obs = st.text_input("Comentario opcional (ej. Lo taparon ayer):")
+                if st.form_submit_button("Confirmar"):
                     ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
                     cur = conn.cursor()
-                    if resultado_v.startswith("Sí"):
+                    if estado_obs.startswith("Ya quedó"):
                         cur.execute("""
-                            INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle, quien_reporta)
-                            VALUES (?, ?, 'Confirmación de reparación', ?, ?);
-                        """, (id_sel, ahora, f"Reparación verificada. {notas_v}", quien_v))
+                            INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle)
+                            VALUES (?, ?, 'Confirmación de reparación', ?);
+                        """, (id_sel, ahora, f"Confirmado reparado. {detalle_obs}"))
                         cur.execute("UPDATE bache SET estatus = 'Reparado' WHERE id_bache = ?;", (id_sel,))
                         conn.commit()
                         recalcular_prioridades(conn)
-                        st.success("✅ ¡Listo! El bache pasó a estatus 'Reparado' y se retiró del mapa activo.")
+                        st.success("✅ ¡Gracias! El bache se marcó como reparado y se quitó del mapa.")
                         st.rerun()
                     else:
                         cur.execute("""
-                            INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle, quien_reporta)
-                            VALUES (?, ?, 'Seguimiento en campo', ?, ?);
-                        """, (id_sel, ahora, f"{resultado_v}. {notas_v}", quien_v))
+                            INSERT INTO historial_bache (id_bache, fecha_evento, tipo_evento, detalle)
+                            VALUES (?, ?, 'Actualización ciudadana', ?);
+                        """, (id_sel, ahora, f"{estado_obs}. {detalle_obs}"))
                         cur.execute("UPDATE bache SET estatus = 'En seguimiento' WHERE id_bache = ?;", (id_sel,))
                         conn.commit()
-                        st.warning("⚠️ Se guardó la actualización en el historial. El bache sigue activo en el mapa.")
+                        st.warning("⚠️ Gracias por avisar. El reporte sigue activo en el mapa.")
                         st.rerun()
 
     conn.close()
 
 # ------------------------------------------
-# PESTAÑA 2: FORMULARIO DE REGISTRO
+# PESTAÑA 2: FORMULARIO CIUDADANO FÁCIL Y RÁPIDO
 # ------------------------------------------
-with tab_registro:
-    st.subheader("Registrar Nuevo Bache en Calle Tizimín")
-    st.write("Si existe otro bache a menos de 10 metros, el reporte se sumará a su historial. Si está entre 10 y 50 metros, aumentará la prioridad de ambos.")
+with tabs[1]:
+    st.subheader("Reportar un Bache en Calle Tizimín")
+    st.write("Completa estos pasos rápidos. No necesitas crear cuenta ni poner tus datos personales.")
 
     conn = get_connection()
-    df_zonas_cat = pd.read_sql_query("SELECT id_zona, nombre, puntos_extra FROM zona_importante;", conn)
+    df_zonas_cat = pd.read_sql_query("SELECT id_zona, nombre FROM zona_importante;", conn)
     conn.close()
 
-    esquina_sel = st.selectbox("1. Selecciona la esquina más cercana (o elige GPS manual):", list(ESQUINAS_TIZIMIN.keys()))
-    lat_default, lon_default = ESQUINAS_TIZIMIN[esquina_sel]
+    with st.form("form_ciudadano_facil"):
+        esquina_sel = st.selectbox(
+            "1. ¿En qué esquina de Calle Tizimín está el bache?",
+            list(ESQUINAS_TIZIMIN.keys())
+        )
 
-    with st.form("form_alta_bache"):
-        c1, c2 = st.columns(2)
-        with c1:
-            lat_in = st.number_input("Latitud", value=lat_default, format="%.6f")
-            lon_in = st.number_input("Longitud", value=lon_default, format="%.6f")
-            detalle_in = st.text_input("Referencia exacta", placeholder="Ej. Frente al número 112, carril norte")
-            quien_in = st.text_input("Tu nombre o rol", value="Vecino")
+        tamano_opcion = st.radio(
+            "2. ¿Qué tan grande o peligroso es?",
+            [
+                "Chico (apenas empieza a romperse el pavimento)",
+                "Mediano (golpea fuerte la llanta si no lo esquivas)",
+                "Grande / Profundo (muy peligroso para autos, motos o peatones)"
+            ],
+            index=1
+        )
 
-        with c2:
-            sev_in = st.slider("Severidad física (1 = leve, 5 = peligroso)", 1, 5, 3)
-            area_in = st.number_input("Área aproximada del daño (cm²)", min_value=100.0, max_value=50000.0, value=600.0, step=100.0)
-            opciones_z = {f"{r['nombre']} (+{r['puntos_extra']} pts)": r["id_zona"] for _, r in df_zonas_cat.iterrows()}
-            zonas_in = st.multiselect("¿Hay alguna zona importante cerca? (Aumenta prioridad)", list(opciones_z.keys()))
-            foto_in = st.file_uploader("Evidencia fotográfica (opcional)", type=["jpg", "png", "jpeg"])
+        opciones_z = {r["nombre"]: r["id_zona"] for _, r in df_zonas_cat.iterrows()}
+        zonas_sel = st.multiselect(
+            "3. ¿Hay algún lugar importante cerca? (Opcional - ayuda a darle mayor prioridad)",
+            list(opciones_z.keys())
+        )
 
-        enviar = st.form_submit_button("Guardar Reporte y Calcular Prioridad")
+        referencia_txt = st.text_input(
+            "4. Referencia rápida (Opcional)",
+            placeholder="Ej. Frente a la tienda, pasando el tope, carril hacia Picacho..."
+        )
 
-        if enviar:
-            ids_z = [opciones_z[z] for z in zonas_in]
-            folio_res, fue_fusionado = procesar_nuevo_reporte(
-                esquina_sel, lat_in, lon_in, detalle_in, sev_in, area_in, ids_z, quien_in, foto_in is not None
-            )
-            if fue_fusionado:
-                st.info(f"ℹ️ Ya existía un bache a menos de 10 metros (**Folio #{folio_res}**). Tu reporte se agregó a su historial para reforzar su seguimiento.")
+        foto_up = st.file_uploader("5. Subir foto del bache (Opcional)", type=["jpg", "jpeg", "png"])
+
+        if st.form_submit_button("Enviar Reporte"):
+            lat_e, lon_e = ESQUINAS_TIZIMIN[esquina_sel]
+
+            # Traducir lenguaje ciudadano a variables matemáticas internas
+            if tamano_opcion.startswith("Chico"):
+                sev_calc, area_calc = 2, 300.0
+            elif tamano_opcion.startswith("Mediano"):
+                sev_calc, area_calc = 3, 650.0
             else:
-                st.success(f"✅ Bache registrado con éxito bajo el **Folio #{folio_res}**. Revisa la primera pestaña para ver su posición y prioridad.")
+                sev_calc, area_calc = 5, 1400.0
+
+            ids_z = [opciones_z[z] for z in zonas_sel]
+            folio_res, repetido = registrar_reporte_ciudadano(
+                esquina_sel, lat_e, lon_e, referencia_txt, sev_calc, area_calc, ids_z, foto_up is not None
+            )
+
+            if repetido:
+                st.info(f"ℹ️ Ya teníamos registrado este bache (**Bache #{folio_res}**). Sumamos tu reporte para darle más fuerza.")
+            else:
+                st.success(f"✅ ¡Listo! Tu reporte quedó guardado como **Bache #{folio_res}** y ya aparece en el mapa.")
 
 # ------------------------------------------
-# PESTAÑA 3: PROYECCIONES Y TABLAS SQL
+# PESTAÑA 3 (SOLO ADMIN): MODELOS Y BASE DE DATOS
 # ------------------------------------------
-with tab_analisis:
-    st.subheader("Análisis Matemático, Financiero y Auditoría SQL")
-    conn = get_connection()
+if st.session_state.es_admin:
+    with tabs[2]:
+        st.subheader("🔒 Panel de Administrador — Modelos Matemáticos y Base de Datos")
+        conn = get_connection()
 
-    df_todo = pd.read_sql_query("""
-        SELECT b.id_bache AS Folio, b.estatus AS Estatus, b.severidad AS Severidad,
-               b.area_inicial_cm2 AS Area_Hoy_cm2, b.indice_prioridad AS Prioridad, u.esquina_ref AS Esquina
-        FROM bache b
-        JOIN ubicacion_bache u ON b.id_bache = u.id_bache;
-    """, conn)
+        df_admin = pd.read_sql_query("""
+            SELECT b.id_bache AS Folio, b.estatus AS Estatus, b.severidad AS Severidad,
+                   b.area_inicial_cm2 AS Area_cm2, b.baches_cercanos AS Vecinos,
+                   b.indice_prioridad AS Prioridad, b.fecha_registro AS Registro,
+                   u.esquina_ref AS Esquina, u.latitud AS Lat, u.longitud AS Lon
+            FROM bache b
+            JOIN ubicacion_bache u ON b.id_bache = u.id_bache;
+        """, conn)
 
-    if not df_todo.empty:
-        # Aplicar Cálculo Integral, Bayes y Contabilidad a cada registro
-        areas_30d, riesgos_bayes, costos_hoy, costos_30d = [], [], [], []
-        for _, r in df_todo.iterrows():
-            cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM bache_zona WHERE id_bache = ?;", (int(r["Folio"]),))
-            n_zonas = cur.fetchone()[0]
+        if not df_admin.empty:
+            areas_30, riesgos, c_hoy_list, c_30_list = [], [], [], []
+            for _, r in df_admin.iterrows():
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM bache_zona WHERE id_bache = ?;", (int(r["Folio"]),))
+                nz = cur.fetchone()[0]
 
-            a_fut = proyectar_degradacion_integral(r["Area_Hoy_cm2"], r["Severidad"], dias=30)
-            prob = probabilidad_riesgo_bayes(r["Severidad"], n_zonas)
-            c_hoy, c_fut = estimar_costos(r["Area_Hoy_cm2"])
+                areas_30.append(proyectar_degradacion_integral(r["Area_cm2"], r["Severidad"], 30))
+                riesgos.append(f"{probabilidad_riesgo_bayes(r['Severidad'], nz)}%")
+                ch, cf = estimar_costos(r["Area_cm2"])
+                c_hoy_list.append(ch)
+                c_30_list.append(cf)
 
-            areas_30d.append(a_fut)
-            riesgos_bayes.append(f"{prob}%")
-            costos_hoy.append(c_hoy)
-            costos_30d.append(c_fut)
+            df_admin["Area_30dias_cm2"] = areas_30
+            df_admin["Riesgo_Bayes"] = riesgos
+            df_admin["Costo_Hoy_MXN"] = c_hoy_list
+            df_admin["Costo_30dias_MXN"] = c_30_list
 
-        df_todo["Area_30dias_cm2"] = areas_30d
-        df_todo["Riesgo_Bayes"] = riesgos_bayes
-        df_todo["Costo_Hoy_MXN"] = costos_hoy
-        df_todo["Costo_30dias_MXN"] = costos_30d
+            st.write("**Proyección Integral, Probabilidad Bayesiana y Costos Financieros (Todos los registros):**")
+            st.dataframe(df_admin, use_container_width=True, hide_index=True)
 
-        st.dataframe(df_todo, use_container_width=True, hide_index=True)
-
-    st.divider()
-    st.write("**Inspección directa de las 5 tablas relacionales:**")
-    tabla_sql = st.selectbox("Elige una tabla:", ["bache", "ubicacion_bache", "historial_bache", "zona_importante", "bache_zona"])
-    st.dataframe(pd.read_sql_query(f"SELECT * FROM {tabla_sql};", conn), use_container_width=True, hide_index=True)
-    conn.close()
+        st.divider()
+        st.write("**Explorador de las 5 Tablas Relacionales (SQLite):**")
+        t_sel = st.selectbox("Selecciona tabla:", ["bache", "ubicacion_bache", "historial_bache", "zona_importante", "bache_zona"])
+        st.dataframe(pd.read_sql_query(f"SELECT * FROM {t_sel};", conn), use_container_width=True, hide_index=True)
+        conn.close()

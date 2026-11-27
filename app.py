@@ -1,3 +1,6 @@
+# ==============================================================================
+# CONFIGURACIÓN INICIAL, LIBRERÍAS Y DATOS GEOGRÁFICOS BASE
+# ==============================================================================
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -12,15 +15,11 @@ try:
 except ImportError:
     GPS_DISPONIBLE = False
 
-# ==========================================
-# CONFIGURACIÓN GENERAL Y CONTRASEÑA ADMIN
-# ==========================================
 st.set_page_config(page_title="Baches Calle Tizimín", layout="wide")
 
 DB_NAME = "tizimin_estructuras_v8.db"
 ADMIN_PASSWORD = "tizimin2026"
 
-# Las 32 esquinas calibradas cuadra por cuadra desde Av. Maní hasta Blvd. Picacho-Ajusco
 ESQUINAS_TIZIMIN = [
     ("1. Av. Maní (Inicio del tramo)", 19.28828, -99.23615),
     ("2. Calle Kopomá", 19.28832, -99.23535),
@@ -59,8 +58,6 @@ ESQUINAS_TIZIMIN = [
 DICT_ESQUINAS = {nombre: (lat, lon) for nombre, lat, lon in ESQUINAS_TIZIMIN}
 NOMBRES_ESQUINAS = [nombre for nombre, _, _ in ESQUINAS_TIZIMIN]
 
-# Desplazamiento (~2.8 metros por lado) para diferenciar las 4 esquinas de un mismo cruce
-# respetando el margen de repetición <= 2m y cercanía <= 5m
 DESPLAZAMIENTO_ESQUINA = {
     "Esquina norte (carril hacia Picacho-Ajusco)": (0.000025, 0.000025),
     "Contraesquina sur (carril hacia Av. Maní)": (-0.000025, -0.000025),
@@ -72,11 +69,14 @@ DESPLAZAMIENTO_ESQUINA = {
 def fecha_actual():
     return datetime.now().isoformat(" ", "minutes")
 
-# ==========================================
-# 1. MÓDULO DE ESTRUCTURAS DE DATOS (POO)
-# ==========================================
+
+# ==============================================================================
+# BLOQUE 1: ESTRUCTURA DE DATOS Y PROGRAMACIÓN ORIENTADA A OBJETOS (POO)
+# Temas: Clases, Métodos Especiales (__eq__, __hash__, __str__),
+#        Pila (LIFO), Cola sin Prioridad (FIFO) y Cola con Prioridad
+# ==============================================================================
 class PilaHistorial:
-    """Pila (LIFO: Último en entrar, primero en salir) para bitácora y opción Deshacer."""
+    """TDA Pila (LIFO: Último en entrar, primero en salir) para bitácora y Deshacer."""
     def __init__(self):
         self.elementos = []
 
@@ -99,9 +99,14 @@ class PilaHistorial:
     def obtener_lifo(self):
         return list(reversed(self.elementos))
 
+    def __eq__(self, otra):
+        if not isinstance(otra, PilaHistorial):
+            return False
+        return self.elementos == otra.elementos
+
 
 class Bache:
-    """Clase que modela cada reporte vial como un objeto independiente."""
+    """Clase que modela cada reporte vial como un objeto con atributos y comportamiento."""
     def __init__(self, folio, esquina, entre_calles, severidad, area_cm2, pts_zonas, estatus, fecha, lat, lon):
         self.folio = folio
         self.esquina = esquina
@@ -120,7 +125,7 @@ class Bache:
         self.recalcular_prioridad()
 
     def distancia_a(self, otro_bache):
-        """Fórmula de Haversine: distancia geodésica en metros entre dos objetos Bache."""
+        """Calcula la distancia geodésica en metros entre dos objetos Bache (Haversine)."""
         R = 6371000
         phi1, phi2 = math.radians(self.lat), math.radians(otro_bache.lat)
         dphi = math.radians(otro_bache.lat - self.lat)
@@ -142,12 +147,24 @@ class Bache:
     def es_critico(self):
         return self.prioridad >= 70
 
+    def __eq__(self, otro):
+        """Igualdad entre objetos Bache: mismo folio o distancia <= 2.0 metros."""
+        if not isinstance(otro, Bache):
+            return False
+        if self.folio > 0 and otro.folio > 0:
+            return self.folio == otro.folio
+        return self.distancia_a(otro) <= 2.0
+
+    def __hash__(self):
+        """Permite indexar objetos Bache en conjuntos (set) o diccionarios."""
+        return hash(self.folio if self.folio > 0 else (round(self.lat, 5), round(self.lon, 5)))
+
     def __str__(self):
         return f"Bache #{self.folio} — {self.esquina} (Urgencia: {self.prioridad}/100)"
 
 
 class ColaRecepcion:
-    """Cola sin prioridad (FIFO: Primero en llegar, primero en ser revisado)."""
+    """TDA Cola sin prioridad (FIFO: Primero en llegar, primero en ser revisado)."""
     def __init__(self):
         self.items = []
 
@@ -155,7 +172,8 @@ class ColaRecepcion:
         return len(self.items) == 0
 
     def encolar(self, objeto_bache):
-        self.items.append(objeto_bache)
+        if objeto_bache not in self.items:
+            self.items.append(objeto_bache)
 
     def desencolar(self):
         if self.esta_vacia():
@@ -167,9 +185,14 @@ class ColaRecepcion:
             return None
         return self.items[0]
 
+    def __eq__(self, otra):
+        if not isinstance(otra, ColaRecepcion):
+            return False
+        return self.items == otra.items
+
 
 class ColaPrioridadBaches:
-    """Cola con prioridad que agrupa baches en contraesquinas o a <= 5 metros al encolar."""
+    """TDA Cola con Prioridad: agrupa por contraesquina o radio <= 5m y extrae el más urgente."""
     def __init__(self, radio_metros=5.0):
         self.items = []
         self.radio_metros = radio_metros
@@ -178,7 +201,6 @@ class ColaPrioridadBaches:
         return len(self.items) == 0
 
     def encolar(self, nuevo_bache):
-        """Compara el nuevo objeto Bache contra los ya formados y actualiza sus prioridades."""
         for existente in self.items:
             if nuevo_bache.comparte_cruce_con(existente):
                 nuevo_bache.misma_esquina += 1
@@ -193,7 +215,6 @@ class ColaPrioridadBaches:
         self.items.append(nuevo_bache)
 
     def desencolar(self):
-        """Extrae el bache más urgente; desempata por contraesquinas y vecinos a <= 5m."""
         if self.esta_vacia():
             return None
         indice_max = 0
@@ -219,9 +240,55 @@ class ColaPrioridadBaches:
             ordenados.append(copia.desencolar())
         return ordenados
 
-# ==========================================
-# 2. BASE DE DATOS RELACIONAL (5 TABLAS)
-# ==========================================
+    def __eq__(self, otra):
+        if not isinstance(otra, ColaPrioridadBaches):
+            return False
+        return self.extraer_todos_ordenados() == otra.extraer_todos_ordenados()
+
+
+# ==============================================================================
+# BLOQUE 2: CÁLCULO INTEGRAL, PROBABILIDAD Y CONTABILIDAD FINANCIERA
+# Temas: Integral definida de degradación acumulada, Teorema de Bayes y
+#        Análisis Costo-Beneficio (Bacheo Preventivo vs. Costo por Inacción)
+# ==============================================================================
+def calcular_degradacion_integral(area_inicial, severidad, num_zonas=0, dias=30):
+    """Calcula el desgaste acumulado integrando la tasa de deterioro r(t) en [0, dias]."""
+    k_sev = 0.35 * severidad
+    k_trafico = 0.20 * (1 + num_zonas)
+    k_agua = 0.25
+    tasa_total = k_sev + k_trafico + k_agua
+    desgaste_acumulado = 0.5 * tasa_total * (dias ** 2)
+    area_30d = round(area_inicial + desgaste_acumulado, 1)
+    indice_deg = min(round((desgaste_acumulado / 1800.0) * 100, 1), 100.0)
+    return area_30d, indice_deg
+
+def probabilidad_riesgo_bayes(severidad, num_zonas):
+    """Estima la probabilidad posterior de accidente o siniestro vial mediante Bayes."""
+    prior = 0.15 + (severidad * 0.10)
+    verosimilitud = 0.85 if num_zonas > 0 else 0.45
+    numerador = prior * verosimilitud
+    denominador = numerador + ((1 - prior) * (1 - verosimilitud))
+    return round((numerador / denominador) * 100, 1)
+
+def modelo_financiero_completo(area_cm2, severidad, num_zonas):
+    """Evalúa inversión preventiva hoy frente al costo total por inacción a 30 días."""
+    m2_hoy = area_cm2 / 10000.0
+    costo_preventivo_hoy = max(420.0, round(m2_hoy * 1050.0, 2))
+    area_30d, _ = calcular_degradacion_integral(area_cm2, severidad, num_zonas, 30)
+    m2_30d = area_30d / 10000.0
+    costo_reencarpetado = max(950.0, round(m2_30d * 2100.0, 2))
+    base_danos_terceros = 1800.0 * severidad
+    factor_lugar = 1.0 + (0.35 * num_zonas)
+    costo_danos_terceros = round(base_danos_terceros * factor_lugar, 2)
+    costo_total_no_reparar = round(costo_reencarpetado + costo_danos_terceros, 2)
+    ahorro_neto = round(costo_total_no_reparar - costo_preventivo_hoy, 2)
+    return costo_preventivo_hoy, costo_reencarpetado, costo_danos_terceros, costo_total_no_reparar, ahorro_neto
+
+
+# ==============================================================================
+# BLOQUE 3: BASES DE DATOS RELACIONALES (SQLITE — 5 TABLAS) Y PERSISTENCIA
+# Temas: DDL/DML en SQL, Llaves Primarias/Foráneas, Relación M:M y Puente BD-TDA
+# ==============================================================================
 def get_connection():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -294,11 +361,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ==========================================
-# 3. FUNCIONES ESPACIALES, PUENTE TDA Y MODELOS
-# ==========================================
 def calcular_coordenada_reporte(esquina_sel, lado_cruce, gps_lat=None, gps_lon=None):
-    """Usa el GPS real si existe; si no, aplica el desplazamiento de la esquina elegida."""
     if gps_lat is not None and gps_lon is not None:
         return gps_lat, gps_lon
 
@@ -326,7 +389,7 @@ def detectar_tramo_por_gps(lat_gps, lon_gps):
     return d1, esq1, f"GPS cerca de {esq1} (tramo hacia {esq2})"
 
 def construir_estructuras_activas(conn):
-    """Lee SQLite y construye los objetos Bache, la ColaRecepcion (FIFO) y la ColaPrioridadBaches."""
+    """Consulta las tablas SQL y pobla los TDA (ColaRecepcion, ColaPrioridadBaches, PilaHistorial)."""
     cur = conn.cursor()
     cur.execute(
         "SELECT b.id_bache, u.esquina_ref, u.entre_calles, b.severidad, b.area_inicial_cm2, "
@@ -378,12 +441,7 @@ def construir_estructuras_activas(conn):
     return cola_fifo, cola_prioridad
 
 def registrar_reporte_con_tolerancia(esquina, lado_cruce, lat, lon, detalle, severidad, area_cm2, ids_zonas, tiene_foto):
-    """
-    Aplica la regla de tolerancia geodésica:
-    - <= 2.0 m : Misma lat/lon -> Es el MISMO bache (apila en PilaHistorial).
-    - <= 5.0 m : Contraesquina o bache pegado -> BACHE NUEVO (encola y sube prioridad a ambos).
-    - > 5.0 m  : Bache independiente -> BACHE NUEVO.
-    """
+    """Inserta o apila reportes en SQLite respetando la tolerancia <= 2m y cercanía <= 5m."""
     conn = get_connection()
     _, cola_prioridad = construir_estructuras_activas(conn)
     ahora = fecha_actual()
@@ -392,7 +450,7 @@ def registrar_reporte_con_tolerancia(esquina, lado_cruce, lat, lon, detalle, sev
 
     bache_duplicado = None
     for existente in cola_prioridad.items:
-        if nuevo_obj.distancia_a(existente) <= 2.0:
+        if nuevo_obj == existente:
             bache_duplicado = existente
             break
 
@@ -450,36 +508,6 @@ def registrar_reporte_con_tolerancia(esquina, lado_cruce, lat, lon, detalle, sev
         return id_nuevo, "NUEVO_CERCANO"
     return id_nuevo, "NUEVO_INDEPENDIENTE"
 
-def calcular_degradacion_integral(area_inicial, severidad, num_zonas=0, dias=30):
-    k_sev = 0.35 * severidad
-    k_trafico = 0.20 * (1 + num_zonas)
-    k_agua = 0.25
-    tasa_total = k_sev + k_trafico + k_agua
-    desgaste_acumulado = 0.5 * tasa_total * (dias ** 2)
-    area_30d = round(area_inicial + desgaste_acumulado, 1)
-    indice_deg = min(round((desgaste_acumulado / 1800.0) * 100, 1), 100.0)
-    return area_30d, indice_deg
-
-def probabilidad_riesgo_bayes(severidad, num_zonas):
-    prior = 0.15 + (severidad * 0.10)
-    verosimilitud = 0.85 if num_zonas > 0 else 0.45
-    numerador = prior * verosimilitud
-    denominador = numerador + ((1 - prior) * (1 - verosimilitud))
-    return round((numerador / denominador) * 100, 1)
-
-def modelo_financiero_completo(area_cm2, severidad, num_zonas):
-    m2_hoy = area_cm2 / 10000.0
-    costo_preventivo_hoy = max(420.0, round(m2_hoy * 1050.0, 2))
-    area_30d, _ = calcular_degradacion_integral(area_cm2, severidad, num_zonas, 30)
-    m2_30d = area_30d / 10000.0
-    costo_reencarpetado = max(950.0, round(m2_30d * 2100.0, 2))
-    base_danos_terceros = 1800.0 * severidad
-    factor_lugar = 1.0 + (0.35 * num_zonas)
-    costo_danos_terceros = round(base_danos_terceros * factor_lugar, 2)
-    costo_total_no_reparar = round(costo_reencarpetado + costo_danos_terceros, 2)
-    ahorro_neto = round(costo_total_no_reparar - costo_preventivo_hoy, 2)
-    return costo_preventivo_hoy, costo_reencarpetado, costo_danos_terceros, costo_total_no_reparar, ahorro_neto
-
 def cargar_ejemplos_tizimin():
     conn = get_connection()
     cur = conn.cursor()
@@ -502,9 +530,11 @@ def cargar_ejemplos_tizimin():
 init_db()
 cargar_ejemplos_tizimin()
 
-# ==========================================
-# 4. BARRA LATERAL: ACCESO ADMINISTRADOR
-# ==========================================
+
+# ==============================================================================
+# BLOQUE 4: PROGRAMACIÓN PARA LA CIENCIA DE DATOS E INTERFAZ WEB (STREAMLIT)
+# Temas: Visualización Geoespacial (Folium), DataFrames (Pandas) y App Interactiva
+# ==============================================================================
 if "es_admin" not in st.session_state:
     st.session_state.es_admin = False
 
@@ -528,9 +558,6 @@ with st.sidebar:
             st.session_state.es_admin = False
             st.rerun()
 
-# ==========================================
-# 5. INTERFAZ PRINCIPAL
-# ==========================================
 st.title("🛣️ Reporte y Seguimiento de Baches — Calle Tizimín")
 
 if st.session_state.es_admin:
@@ -546,7 +573,7 @@ else:
     ])
 
 # ------------------------------------------
-# PESTAÑA 1: INTERFAZ CIUDADANA SENCILLA
+# PESTAÑA 1: MAPA INTERACTIVO Y CONSULTA CIUDADANA
 # ------------------------------------------
 with tabs[0]:
     conn = get_connection()
@@ -686,7 +713,7 @@ with tabs[0]:
     conn.close()
 
 # ------------------------------------------
-# PESTAÑA 2: FORMULARIO CIUDADANO CON ESQUINAS + GPS
+# PESTAÑA 2: FORMULARIO DE REPORTE CIUDADANO
 # ------------------------------------------
 with tabs[1]:
     st.subheader("Reportar un Bache en Calle Tizimín")
@@ -782,7 +809,7 @@ with tabs[1]:
                 st.success(f"✅ ¡Listo! Tu reporte quedó guardado como **Bache #{folio_res}** y ya aparece en el mapa.")
 
 # ------------------------------------------
-# PESTAÑA 3 (SOLO ADMIN): COLAS, PILAS Y MODELOS
+# PESTAÑA 3: PANEL ADMINISTRADOR (TDA + MODELOS + TABLAS)
 # ------------------------------------------
 if st.session_state.es_admin:
     with tabs[2]:
@@ -790,7 +817,6 @@ if st.session_state.es_admin:
         conn = get_connection()
         cola_fifo, cola_prioridad = construir_estructuras_activas(conn)
 
-        # 1. Sección de Estructuras de Datos (Colas y Pilas) solo visible en Admin
         st.markdown("### 🧱 Estructuras de Datos en Memoria (`Cola`, `ColaPrioridad` y `Pila`)")
         col_e1, col_e2 = st.columns(2)
 
@@ -852,7 +878,6 @@ if st.session_state.es_admin:
 
         st.divider()
 
-        # 2. Modelo Financiero e Índice de Degradación
         st.markdown("### 📊 Modelo Financiero e Índice de Degradación (Cálculo Integral)")
         df_admin = pd.read_sql_query(
             "SELECT b.id_bache AS Folio, b.estatus AS Estatus, b.severidad AS Severidad, "
@@ -900,12 +925,12 @@ if st.session_state.es_admin:
                 k2.metric("Costo por Inacción + Daños a Terceros", f"${df_act_fin['Costo_No_Reparar_MXN'].sum():,.2f} MXN")
                 k3.metric("Ahorro Neto al Atender a Tiempo", f"${df_act_fin['Ahorro_Preventivo_MXN'].sum():,.2f} MXN")
 
-            with st.expander("📚 Metodología y Fuentes del Costo por Inacción"):
+            with st.expander("📚 Metodología y Fuentes Oficiales (México / CDMX) del Costo por Inacción"):
                 st.markdown("""
-                El **Costo Total por Inacción** ($\text{Reencarpetado 30d} + \text{Daños a Terceros}$) se fundamenta en normativa y costos unitarios de la Ciudad de México:
-                * **Bacheo Preventivo Hoy (`$1,050 MXN/m²`, mín. `$420 MXN`):** Basado en el *Tabulador General de Precios Unitarios (TGPU) de la Secretaría de Obras y Servicios de la CDMX (SOBSE)* para bacheo superficial con mezcla asfáltica en caliente.
-                * **Reencarpetado Correctivo a 30 días (`$2,100 MXN/m²`, mín. `$950 MXN`):** Basado en las *Normas de Construcción de la Administración Pública de la CDMX (Libro 3, Pavimentos — SOBSE)*. Al no repararse, el agua y el tránsito erosionan la base hidráulica, duplicando el costo unitario al requerir bacheo profundo.
-                * **Daños a Terceros (`$1,800 MXN` base $\times$ severidad $\times$ factor de zona):** Basado en la *Ley de Responsabilidad Patrimonial del Distrito Federal / CDMX (Arts. 1 y 13)* sobre reclamaciones por fallas en la vía pública y en costos promedio de siniestros viales reportados por la *Asociación Mexicana de Instituciones de Seguros (AMIS)* (desde alineación y llanta ponchada hasta ruptura de suspensión).
+                El **Costo Total por Inacción** ($\text{Reencarpetado 30d} + \text{Daños a Terceros}$) parametriza en pesos mexicanos (MXN) criterios de conservación vial y marco legal vigentes en México y la CDMX:
+                1. **Costos unitarios y Normas de Construcción (CDMX):** Parametrizado con referencia al [Tabulador General de Precios Unitarios del Gobierno de la CDMX (SOBSE, 2025)](https://www.obras.cdmx.gob.mx/storage/app/media/Tabulador%20General%20de%20Precios%20Unitarios%20del%20Gobierno%20de%20la%20Ciudad%20de%20Mexico%20ENERO%202025/tabulador-general-de-precios-unitarios-del-gobierno-de-la-ciudad-de-mexico-enero-2025.pdf) y las *Normas de Construcción de la Administración Pública de la CDMX*.
+                2. **Deterioro de pavimentos flexibles (México):** Basado en los criterios de conservación vial y el *Catálogo de Deterioros en Pavimentos Flexibles* del Instituto Mexicano del Transporte ([Manual de Conservación Vial — Repositorio UNAM](https://ru.dgb.unam.mx/server/api/core/bitstreams/e0498062-96e5-4ef3-9f77-ea69add8b2b5/content)).
+                3. **Daños a terceros y costos vehiculares (México / CDMX):** Respaldado por los estudios de [Costos de Operación Vehicular del IMT (SICT)](https://micrs.sct.gob.mx/images/DireccionesGrales/DGST/Publicaciones/IMT_pdf_13-07.pdf) y la [Ley de Responsabilidad Patrimonial de la Ciudad de México (Gaceta Oficial CDMX, ref. 2025)](https://data.consejeria.cdmx.gob.mx/index.php/leyes/leyes/311-leyderesponsabilidadpa-).
                 """)
 
             st.dataframe(df_admin, use_container_width=True, hide_index=True)
